@@ -155,10 +155,10 @@ class AngleAtBirthWnd(commonwnd.CommonWnd):
         # 중앙정렬 셀 텍스트
         r = self.rows[idx]
         cells = (
-            u"%+0.1fmin" % float(r.get('dt_min', 0.0)),  # Δt
-            r.get('star',  u"-"),                     # Star
-            r.get('angle', u"-"),                     # Angle
-            r.get('time_str', u"-"),                  # Exact Time
+            u"\u00B1%.1fmin" % float(r.get('dt_min', 0.0)),  # Δt: ± 기호 고정
+            r.get('star',  u"-"),
+            r.get('angle', u"-"),
+            r.get('time_str', u"-"),
         )
         col_w = (self.W_DT, self.W_STAR, self.W_ANG, self.W_TIME)
         xx = x
