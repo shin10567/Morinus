@@ -9,3 +9,12 @@ __pycache__/
 *.msi
 *.zip
 *.7z
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+*.msi
+*.exe
+*.dmg
