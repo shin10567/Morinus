@@ -12,9 +12,9 @@ import util
 import mtexts
 
 # --- Speeds %: dynamic mean with matching flags (SWIEPH+SPEED[+TOPO]) ---
-DYN_MEAN_DAYS = 36500    # window length in days (e.g., 10 years total → ±5y)
-DYN_MEAN_STEP = 1.0      # sampling step in days (trade-off: speed vs. smoothness)
-DYN_MEAN_STAT = 'mean'   # 'mean' or 'median'
+DYN_MEAN_DAYS = 365000    # window length in days (e.g., 10 years total → ±5y)
+DYN_MEAN_STEP = 50.0      # sampling step in days (trade-off: speed vs. smoothness)
+DYN_MEAN_STAT = 'mean'    # 'mean' or 'median'
 
 _MEAN_SPEED_CACHE = {}
 
