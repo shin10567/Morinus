@@ -3075,11 +3075,11 @@ class MFrame(wx.Frame):
 # Elias -  V 8.0.5
 # Roberto - V 7.4.4-804
 
-		info.Version = '8.1.0+ by Shin10567 (Unofficial fork)'
+		info.Version = '8.4.0'
 # ###########################################
 		info.Copyright = mtexts.txts['FreeSoft']
 		info.Description = mtexts.txts['Description']+str(astrology.swe_version())
-		info.WebSite = 'https://github.com/shin10567/Morinus-8.1.0-Plus-by-Shin10567-Unofficial-Fork-'
+		info.WebSite = 'https://github.com/shin10567/Morinus'
 		info.Developers = ['In alphabetical surname order:\n\nRobert Nagy (Hungary); robert.pluto@gmail.com (programming and astrology)\n\nPhilippe Epaud(France); philipeau@free.fr (french translation)\nMargherita Fiorello (Italy); margherita.fiorello@gmail.com (astrology, italian translation)\nMartin Gansten (Sweden); http://www.martingansten.com/ (astrology)\nJaime Chica Londoño(Colombia); aulavirtual@astrochart.org (spanish translation)\nRoberto Luporini (Italy); roberto.luporini@tiscali.it (programming and astrological astronomy)\nElías D. Molins (Spain); elias@biblioteca-astrologia.es (programming and astrology)\nPetr Radek (Czech Rep.); petr_radek@raz-dva.cz (astrology)\nJi-hyeon Shin (South Korea); shin10567@naver.com (programming and astrology)\nEndre Csaba Simon (Finland); secsaba@gmail.com (programming and astrology)\nVáclav Jan Špirhanzl (Czech Rep.); vjs.morinus@gmail.com (MacOS version)\nDenis Steinhoff (Israel); denis@steindan.com (astrology, russian translation)']
 		info.License = mtexts.licensetxt
 		

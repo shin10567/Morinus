@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import wx
 import os
 import astrology
@@ -9,6 +10,9 @@ import common
 import Image, ImageDraw, ImageFont
 import util
 import mtexts
+import fortune
+import sys
+
 
 
 class PositionsWnd(wx.ScrolledWindow):
@@ -51,7 +55,7 @@ class PositionsWnd(wx.ScrolledWindow):
 		self.SPACE_ASCPLANETSY = self.LINE_HEIGHT
 		self.SPACE_PLANETSHCSY = self.LINE_HEIGHT
 
-		self.LINE_NUM = 19
+		self.LINE_NUM = 20
 		if self.options.intables:
 			if not self.options.transcendental[chart.Chart.TRANSURANUS]:
 				self.LINE_NUM -= 1
@@ -80,10 +84,12 @@ class PositionsWnd(wx.ScrolledWindow):
 
 		self.fntMorinus = ImageFont.truetype(common.common.symbols, self.FONT_SIZE)
 		self.fntSymbol = ImageFont.truetype(common.common.symbols, 3*self.FONT_SIZE/2)
+		self.LOF_CHAR = u'4'
 		self.fntText = ImageFont.truetype(common.common.abc, self.FONT_SIZE)
 		self.fntRText = ImageFont.truetype(common.common.abc, self.FONT_SIZE*3/4)
 		self.clrs = (self.options.clrdomicil, self.options.clrexal, self.options.clrperegrin, self.options.clrcasus, self.options.clrexil)	
 		self.signs = common.common.Signs1
+		
 		if not self.options.signs:
 			self.signs = common.common.Signs2
 		self.deg_symbol = u'\u00b0'
@@ -166,6 +172,7 @@ class PositionsWnd(wx.ScrolledWindow):
 # ########################################
 
 		j = 0
+
 		for i in range(len(txt[self.speculum])):
 			if self.options.speculums[self.speculum][i]:
 				w,h = draw.textsize(txt[self.speculum][i], self.fntText)
@@ -214,6 +221,38 @@ class PositionsWnd(wx.ScrolledWindow):
 				self.drawregiomontanline(draw, x, y+j*self.LINE_HEIGHT, tableclr, common.common.Planets[i], self.chart.planets.planets[i].speculums[self.speculum], lons[j], i, self.chart.planets.planets[i].data[planets.Planet.SPLON])
 			j += 1
 
+		lot_idx = getattr(self.options, 'lotoffortune', 2) 
+		if   lot_idx == 0: lftype = chart.Chart.LFMOONSUN
+		elif lot_idx == 1: lftype = chart.Chart.LFDSUNMOON
+		else:              lftype = chart.Chart.LFDMOONSUN
+		sun_elv = self.chart.planets.planets[astrology.SE_SUN].speculums[1][planets.Planet.ELV]
+		aboveh = (sun_elv > 0.0)
+
+		obl_val = self.chart.obl[0] if isinstance(self.chart.obl, (list, tuple)) else self.chart.obl
+
+		fort = fortune.Fortune(
+			lftype,
+			self.chart.houses.ascmc2,
+			self.chart.raequasc,
+			self.chart.planets,
+			obl_val,
+			self.chart.place.lat,
+			aboveh
+		)
+
+		lof_lon = fort.fortune[fortune.Fortune.LON]
+		if self.options.ayanamsha != 0:
+			lof_lon -= self.chart.ayanamsha
+			lof_lon = util.normalize(lof_lon)
+
+		if self.speculum == 0:
+			self.drawplacidianline(draw, x, y + j*self.LINE_HEIGHT, tableclr,
+								self.LOF_CHAR, fort.speculum.speculum, lof_lon, 0, 1.0)
+		else:
+			self.drawregiomontanline(draw, x, y + j*self.LINE_HEIGHT, tableclr,
+									self.LOF_CHAR, fort.speculum2.speculum, lof_lon, 0, 1.0)
+		j += 1
+
 		#Houses
 		if not self.options.intables or (self.options.intables and self.options.houses):
 			hidx = (1, 2, 3, 10, 11, 12)
@@ -229,7 +268,7 @@ class PositionsWnd(wx.ScrolledWindow):
 				(lons[3], 0.0, self.chart.houses.cusps2[hidx[3]-1][0], self.chart.houses.cusps2[hidx[3]-1][1]), 
 				(lons[4], 0.0, self.chart.houses.cusps2[hidx[4]-1][0], self.chart.houses.cusps2[hidx[4]-1][1]), 
 				(lons[5], 0.0, self.chart.houses.cusps2[hidx[5]-1][0], self.chart.houses.cusps2[hidx[5]-1][1]))
-			y = y+realnum*self.LINE_HEIGHT+self.SPACE_PLANETSHCSY
+			y = y + (realnum+1)*self.LINE_HEIGHT + self.SPACE_PLANETSHCSY
 			draw.line((x, y, x+self.TABLE_WIDTH, y), fill=tableclr)
 			for i in range(len(hidx)):
 				self.drawanglesline(draw, x, y+i*self.LINE_HEIGHT, tableclr, common.common.Housenames2[hidx[i]-1], data[i])
@@ -340,7 +379,11 @@ class PositionsWnd(wx.ScrolledWindow):
 			else:
 				dign = self.chart.dignity(idxpl)
 				clrpl = self.clrs[dign]
-
+		try:
+			if txt == self.LOF_CHAR:
+				clrpl = (0, 0, 0)
+		except:
+			pass
 		fnt = self.fntMorinus
 		w,h = draw.textsize(txt, fnt)
 		offset = (self.SMALL_CELL_WIDTH-w)/2
@@ -453,7 +496,11 @@ class PositionsWnd(wx.ScrolledWindow):
 			else:
 				dign = self.chart.dignity(idxpl)
 				clrpl = self.clrs[dign]
-
+		try:
+			if txt == self.LOF_CHAR:
+				clrpl = (0, 0, 0)
+		except:
+			pass
 		fnt = self.fntMorinus
 		w,h = draw.textsize(txt, fnt)
 		offset = (self.SMALL_CELL_WIDTH-w)/2
