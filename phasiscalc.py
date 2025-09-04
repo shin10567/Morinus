@@ -42,18 +42,14 @@ def ecl_coords(jd_ut, ipl):
 # --- alt/az cache (위치·천체·시각 기준) ---
 @lru_cache(maxsize=262144)
 def altaz_cached(jd_ut, ipl, lon, lat, alt_m):
-    astrology.swe_set_topo(lon, lat, alt_m)  # 원래 함수와 동일 동작 보장
+    a = _alt_eff_geom(alt_m)
+    astrology.swe_set_topo(lon, lat, a)
     ra, dec, _ = equ_coords(jd_ut, ipl)
-    xaz = astrology.swe_azalt(
-        float(jd_ut), astrology.SE_EQU2HOR,
-        float(lon), float(lat), float(alt_m),
-        0.0, 0.0,  # 기압/온도 없음(원본 그대로)
-        float(ra), float(dec), 1.0
-    )
-    try:
-        az, alt = xaz[0], xaz[1]
-    except Exception:
-        az, alt = xaz[0], xaz[1]
+    xaz = astrology.swe_azalt(float(jd_ut), astrology.SE_EQU2HOR,
+                              float(lon), float(lat), float(a),
+                              0.0, 0.0,  # refraction 없음(원래도 0,0)
+                              float(ra), float(dec), 1.0)
+    az, alt = xaz[0], xaz[1]
     return (float(alt), float(az))
 
 _SUN_EVENT_CACHE = {}
@@ -79,14 +75,7 @@ def pheno_ut(jd_ut, ipl, flags):
 
 # HG 위상함수 기반 근태양 보정 (연속, 하드컷 없음)
 def aureole_penalty_mag(D_deg, eps_deg, g=0.80, A0=1.5, D0=2.0):
-    """
-    반환값: '가시한계 등급'에서 빼줄 페널티[mag]  (값이 클수록 하늘이 밝아, 별/행성 탐지는 더 어려워짐)
-    - D_deg : 태양 침강각(°). 태양이 지평선 위면 0으로 취급(=오레올 최대).
-    - eps_deg: 태양과 목표 천체 이각(°).
-    - g      : HG 비대칭 파라미터(대기 에어로졸 전방산란 보통 0.75~0.85).
-    - A0     : 오레올 강도 스케일(기본 1.5mag 정도 페널티 캡).
-    - D0     : 황혼 심화에 따른 오레올 감쇠 e-폴드(°) ~1.5–2.0 추천.
-    """
+
     # 수치 안전 및 각도 준비
     eps = min(max(float(eps_deg), AUREOLE_EPS_MIN), AUREOLE_EPS_MAX)
     mu  = math.cos(math.radians(eps))
@@ -107,6 +96,22 @@ if not hasattr(math, 'isfinite'):
     def _isfinite(x):
         return (not math.isinf(x)) and (not math.isnan(x))
     math.isfinite = _isfinite
+# ---- Altitude bias policy ---- 'kv_only' or 'full'
+ALTITUDE_BIAS = 'kv_only'
+
+# 사이트 불변 모드: 기하/배경/공기질량 계산엔 alt=0.0만 쓰도록 강제
+SITE_INVARIANT = True
+
+def _alt_eff_geom(alt_m):
+    # 기하(alt/az, D)와 rise/set 경계 계산용 고도
+    return 0.0 if (SITE_INVARIANT or ALTITUDE_BIAS == 'kv_only') else float(alt_m)
+
+def _alt_for_bg(alt_m):
+    # 배경밝기(황혼 μV, 잔광 등) 계산용 고도
+    return 0.0 if (SITE_INVARIANT or ALTITUDE_BIAS == 'kv_only') else float(alt_m)
+
+def _press_gain_for_afterglow():
+    return 0.0 if (SITE_INVARIANT or ALTITUDE_BIAS == 'kv_only') else float(TWILIGHT_PRESS_GAIN)
 
 # ==== Swiss Ephemeris rise/set options ====
 SE_USE_REFRACTION = True       # 굴절 보정 사용(기압/온도 반영). 끄려면 False.
@@ -314,20 +319,18 @@ def muV_patat_paranal(D):
     return float(mu)
 
 def muV_patat_site(D, alt_m):
-    """
-    Paranal 다항식 결과를 '임의 사이트'로 옮기기(깊은 황혼에서 유효)
-    Δμ = -2.5 log10(P_site / P_paranal)
-    """
     mu_par   = muV_patat_paranal(D)
-    p_site   = pressure_from_altitude_hpa(alt_m)
+    alt_b    = _alt_for_bg(alt_m)
+    p_site   = pressure_from_altitude_hpa(alt_b)
     p_par    = pressure_from_altitude_hpa(PARANAL_ALT_M)
     dmu_press = -2.5 * math.log10(max(1e-9, p_site / p_par))
-    return mu_par + dmu_press
+    return mu_par + (0.0 if ALTITUDE_BIAS == 'kv_only' else dmu_press)
 
 def muV_twilight_site(D, alt_m):
+    alt_b = _alt_for_bg(alt_m)
     if TWILIGHT_MODEL == 'patat_poly':
-        return muV_patat_site_ext(D, alt_m)
-    return muV_md_site(D, alt_m)  # 기존
+        return muV_patat_site_ext(D, alt_b)
+    return muV_md_site(D, alt_b)
 
 def _interp1d_anchor(anchors, x):
     """Piecewise-linear interpolation on list[(x, y)], clamped to ends."""
@@ -350,13 +353,11 @@ def muV_md_sea(D):
     return _interp1d_anchor(TWILIGHT_ANCHORS_MD_V, float(D))
 
 def muV_md_site(D, alt_m):
-    """
-    Maryland μV(D) adjusted for site altitude via pressure scaling:
-    μ_site = μ_sea + Δμ,  Δμ = -2.5 log10(p_site / p_sea).
-    (고도↑→기압↓→하늘 어두워짐→μ 증가)
-    """
     mu_sea = muV_md_sea(D)
-    dmu = delta_mu_press_vs_sea(alt_m)  # uses SEA_LEVEL_HPA & barometric formula already in file
+    if ALTITUDE_BIAS == 'kv_only':
+        dmu = 0.0
+    else:
+        dmu = delta_mu_press_vs_sea(alt_m)
     return mu_sea + dmu
 
 INNER_PLANETS  = set([astrology.SE_MERCURY, astrology.SE_VENUS])
@@ -426,8 +427,8 @@ HREF = {
 
 # --- Atmospheric extinction (V-band), altitude-only model ---
 KV0_SEA = 0.3000    # sea-level reference (mag per airmass)
-H0_M    = 4229.3    # scale height in meters
-
+H0_M    = 8500      # scale height in meters
+KV_USED = 0.30
 def kV_from_altitude(H_m, kv0_sea=KV0_SEA, h0_m=H0_M,
                      clamp_min=None, clamp_max=None):
     """
@@ -468,14 +469,15 @@ def _kivalov_raytrace_core(alt_deg, elev_m, R_earth_m=6371000.0,
         return 0.0
     z = math.radians(90.0 - hdeg)           # apparent zenith angle
     r0 = R_earth_m + float(elev_m)
-    n0 = 1.0 + float(n0_minus1)
-    I = n0 * r0 * math.sin(z)               # Snell invariant
 
     def rho_ratio(h_m):
         return math.exp(-h_m / float(H_m))
     def n_of_r(r_m):
         h = r_m - R_earth_m
         return 1.0 + n0_minus1 * rho_ratio(h)
+
+    n0_local = n_of_r(r0)               # 관측고도에서의 굴절률로 시드
+    I = n0_local * r0 * math.sin(z)
 
     X = 0.0
     r = r0
@@ -497,8 +499,11 @@ def _kivalov_raytrace_core(alt_deg, elev_m, R_earth_m=6371000.0,
         if rr < 1e-6 and r > r0 + 10000.0:
             break
 
-    X /= float(H_m)  # 천정에서 ≈1이 되도록 정규화
-    return max(0.0, X if AIRMASS_CLAMP_MAX is None else min(X, AIRMASS_CLAMP_MAX))
+    col_vert = float(H_m) * math.exp(-float(elev_m) / float(H_m))  # 관측 고도의 수직 기둥
+    X /= max(1e-9, col_vert) 
+    if AIRMASS_CLAMP_MAX is not None:
+        X = min(X, float(AIRMASS_CLAMP_MAX))
+    return max(0.0, X)
 
 # 캐싱: alt(0.01°), 고도(0.1 m) 격자에 캐시해 반복 호출 속도 ↑
 @lru_cache(maxsize=262144)
@@ -512,19 +517,16 @@ def airmass_kivalov_raytrace(alt_deg, elev_m,
     return _kivalov_cached(h_q, e_q, float(H_m), float(n0_minus1), float(dr_m))
 
 def airmass_effective(alt_deg, elev_m, model=None):
-    """통합 진입점: 모델 스위치/하이브리드 로직."""
+    elev_eff = 0.0 if (SITE_INVARIANT or ALTITUDE_BIAS == 'kv_only') else float(elev_m)
     m = (AIRMASS_MODEL if model is None else model).lower()
     h = max(0.0, float(alt_deg))
     if m == 'hybrid':
-        if h <= AIRMASS_HYBRID_SWITCH_DEG:
-            return airmass_kivalov_raytrace(h, elev_m)
-        else:
-            return airmass_kasten_young(h)
+        return airmass_kivalov_raytrace(h, elev_eff) if h <= AIRMASS_HYBRID_SWITCH_DEG else airmass_kasten_young(h)
     elif m == 'kivalov':
-        return airmass_kivalov_raytrace(h, elev_m)
+        return airmass_kivalov_raytrace(h, elev_eff)
     elif m == 'pickering':
         return airmass_pickering2002(h)
-    else:  # 'kasten-young'
+    else:
         return airmass_kasten_young(h)
 
 def airmass_kasten_young(h_deg):
@@ -583,27 +585,27 @@ def afterglow(D, dA_deg, is_evening, alt_m):
         return 0.0
     d = float(D)
 
-    # 방위 가중
-    base = 0.5 * (1.0 + math.cos(math.radians(dA_deg)))  # 0..1
+    base = 0.5 * (1.0 + math.cos(math.radians(dA_deg)))
     w_az = base ** AZ_WEIGHT_P
 
     if TWILIGHT_MODEL == 'md_anchor':
-        mu_site = muV_md_site(d, alt_m)
-        dmu = max(0.0, MU_DARK_SEA - mu_site)
+        mu_site = muV_md_site(d, _alt_for_bg(alt_m))
+        MU_DARK = MU_DARK_SEA  
+        dmu = max(0.0, MU_DARK - mu_site)
         return C_MU2NELM * TWILIGHT_C * dmu * w_az
 
     elif TWILIGHT_MODEL == 'patat_poly':
-        mu_site = muV_patat_site(d, alt_m)
-        dmu = max(0.0, MU_DARK_SEA - mu_site)   # (암야 기준은 해수면 값 유지)
+        mu_site = muV_patat_site(d, _alt_for_bg(alt_m))
+        MU_DARK = MU_DARK_SEA  
+        dmu = max(0.0, MU_DARK - mu_site)
         return C_MU2NELM * TWILIGHT_C * dmu * w_az
 
     else:
-        # 기존 exp_simple 폴백 그대로
         D0, gamma = 5.0, 1.2
         x = math.exp(- (d / D0) ** gamma)
         ag0 = TWILIGHT_C * x * w_az
-        dmu = delta_mu_press_vs_sea(alt_m)  # mag/arcsec^2
-        ag  = max(0.0, ag0 - TWILIGHT_PRESS_GAIN * dmu)
+        dmu = delta_mu_press_vs_sea(_alt_for_bg(alt_m))  
+        ag  = max(0.0, ag0 - _press_gain_for_afterglow() * dmu)
         return ag
 
 # --- helpers ---
@@ -622,33 +624,28 @@ def _patat_poly_mu_slope_paranal(D):
 # --- extended Patat μV(D) for any D (we care about ~5..18) ---
 def muV_patat_site_ext(D, alt_m):
     D = float(D)
+    alt_b = _alt_for_bg(alt_m)
 
-    # (A) 상부 꼬리: D >= 15° → 암야로 C¹ 수렴
     if D >= 15.0:
-        # 경계값/기울기(Paranal 다항식) + 기압 오프셋만 현장으로 이동
-        mu15_par, slope15 = _patat_poly_mu_slope_paranal(15.0)   # slope는 D에 대한 기울기
-        # 압력 보정(상수항만 이동; 기울기는 그대로)
-        dmu_press = -2.5 * math.log10(
-            pressure_from_altitude_hpa(alt_m) / pressure_from_altitude_hpa(PARANAL_ALT_M)
+        mu15_par, slope15 = _patat_poly_mu_slope_paranal(15.0)
+        dmu_press = 0.0 if ALTITUDE_BIAS == 'kv_only' else -2.5 * math.log10(
+            pressure_from_altitude_hpa(alt_b) / pressure_from_altitude_hpa(PARANAL_ALT_M)
         )
-        mu15_site = mu15_par + dmu_press
-        mu_dark_site = MU_DARK_SEA + delta_mu_press_vs_sea(alt_m)
+        mu15_site   = mu15_par + dmu_press
+        mu_dark_site = MU_DARK_SEA if ALTITUDE_BIAS == 'kv_only' \
+                        else (MU_DARK_SEA + delta_mu_press_vs_sea(alt_b))
 
-        # C¹ 연속 지수 꼬리: μ(15)=μ15, μ'(15)=slope15를 맞춤
         tau = max(0.2, (mu_dark_site - mu15_site) / max(1e-6, slope15))
         mu_tail = mu15_site + (mu_dark_site - mu15_site) * (1.0 - math.exp(-(D - 15.0)/tau))
         return mu_tail if D < 18.0 else mu_dark_site
 
-    # (B) 하부 핸드오프: 5° <= D < 6° → Patat ↔ Maryland 부드러운 블렌드(선택)
     if D < 0.0:
-        # Maryland 앵커는 6°부터라, 6°값과 Patat(D) 사이 S-curve 블렌드
-        mu_patat = muV_patat_site(max(5.0, D), alt_m)
-        mu_md    = muV_md_site(6.0, alt_m)   # 필요시 6°로 클램프
-        w = _smoothstep01(D - 5.0)           # D=5→0, D=6→1
+        mu_patat = muV_patat_site(max(5.0, D), alt_b)
+        mu_md    = muV_md_site(6.0, alt_b)
+        w = _smoothstep01(D - 5.0)
         return (1.0 - w) * mu_patat + w * mu_md
 
-    # (C) 본구간: 6° <= D <= 15° → Patat 그대로(압력 보정 포함)
-    return muV_patat_site(D, alt_m)
+    return muV_patat_site(D, alt_b)
 
 # --- Swiss Ephemeris exact-output wrappers ---
 @lru_cache(maxsize=262144)
@@ -819,14 +816,10 @@ def visible_window_for_day(jd_day_ut, lon, lat, alt_m, ipl, is_evening, hmin=0.0
     # --- sunset/sunrise (Swiss Ephemeris) ---
     # 표준 일몰/일출을 스위스에페머리스로 구함(굴절 포함하려면 atpress/attemp 세팅)
     def _sun_event(jd0, lon, lat, alt_m, event):
-        # 캐시 키: '그 날'(정수 JD) + 위치 + 옵션 + 이벤트종류
-        key = (
-            int(jd0), 
-            round(lon, 12), round(lat, 12), round(alt_m, 3),
+        a = _alt_eff_geom(alt_m)
+        key = (int(jd0), round(lon,12), round(lat,12), round(a,3),
             'disc_bottom' if SE_USE_DISC_BOTTOM else 'disc_center',
-            'refract' if SE_USE_REFRACTION else 'no_refract',
-            event
-        )
+            'refract' if SE_USE_REFRACTION else 'no_refract', event)
         hit = _SUN_EVENT_CACHE.get(key)
         if hit is not None:
             return hit
@@ -850,21 +843,13 @@ def visible_window_for_day(jd_day_ut, lon, lat, alt_m, ipl, is_evening, hmin=0.0
         horhgt = 0.0  # 로컬 지평선 고도(°)
 
         # 래퍼 호환: (tret, rflag) 또는 (rc, tret)
-        # ★ Morinus astrology 래퍼 호환 호출부 (튜플 대신 lon, lat, alt_m 개별 인자)
         rflag, jdev, serr = astrology.swe_rise_trans(
-            float(tjd_ut),                    # UT JD
-            astrology.SE_SUN,              # ipl
-            "",                            # starname: 빈 문자열( None 금지 )
-            int(epheflag),                 # epheflag (예: SEFLG_SWIEPH | SEFLG_TOPOCTR)
-            int(rsmi),                     # rsmi (예: SE_CALC_RISE/SET | SE_BIT_DISC_CENTER 등)
-            float(lon),                    # lon_deg
-            float(lat),                    # lat_deg
-            float(alt_m),                  # geoalt_m [m]
-            float(atpress),                # hPa (굴절 OFF면 0.0)
-            float(attemp)                  # °C
-        )
+            float(tjd_ut), astrology.SE_SUN, "",
+            int(epheflag), int(rsmi),
+            float(lon), float(lat), float(a),      
+            float(SE_ATPRESS), float(SE_ATTEMP))
         out = float(jdev) if (rflag >= 0) else None
-        _SUN_EVENT_CACHE[key] = out    # ← 이 한 줄 추가
+        _SUN_EVENT_CACHE[key] = out    
         return out
 
     # --- 스캔 루프 (근지평/가시성/ε 동시 추적) ---
@@ -914,10 +899,9 @@ def visible_window_for_day(jd_day_ut, lon, lat, alt_m, ipl, is_evening, hmin=0.0
 
                 # 가시성(밝기/잔광/지평선/소광)
                 side_ok = (_elong_side(t, ipl) == ('E' if is_evening_flag else 'W'))
-
                 if alt_pl >= hmin and side_ok:
                     dA = abs((az_pl - az_sun + 540.0) % 360.0 - 180.0)
-                    kv = kV_from_altitude(alt_m)
+                    kv = float(KV_USED)
                     X  = airmass_effective(max(0.0, alt_pl), alt_m)
                     m0, _ = planet_magnitude(ipl, t)
                     m_obs = m0 + kv * (X - 1.0)
@@ -958,19 +942,18 @@ def visible_window_for_day(jd_day_ut, lon, lat, alt_m, ipl, is_evening, hmin=0.0
     if is_evening:
         ok_above, _, _ = _above_horizon_at(sunset, ipl, lon, lat, alt_m, eps=0.0)
         hemi_ok        = _same_hemisphere_as_sun_at(sunset, ipl, lon, lat, alt_m)
-        evening_boundary_ok = ok_above
+        evening_boundary_ok = (ok_above and hemi_ok)
         return _scan(sunset, sunset + (EVENING_WINDOW_HR/24.0), True, evening_boundary_ok)
     else:
         ok_above, _, _ = _above_horizon_at(sunrise, ipl, lon, lat, alt_m, eps=0.0)
         hemi_ok        = _same_hemisphere_as_sun_at(sunrise, ipl, lon, lat, alt_m)
-        morning_boundary_ok = ok_above
+        morning_boundary_ok = (ok_above and hemi_ok)
         return _scan(sunrise - (MORNING_WINDOW_HR/24.0), sunrise, False, morning_boundary_ok)
-
 
 def visibility_flags_around(chart, days_window=7):
     jd0 = chart.time.jd
     lon, lat, alt_m = chart.place.lon, chart.place.lat, float(chart.place.altitude)
-    astrology.swe_set_topo(lon, lat, alt_m) 
+    astrology.swe_set_topo(lon, lat, _alt_eff_geom(alt_m))
     out = {}
     scan_w = max(days_window, 10)
 

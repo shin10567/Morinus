@@ -139,7 +139,7 @@ class PhasisWnd(commonwnd.CommonWnd):
         self.LINE_HEIGHT  = (self.SPACE + self.FONT_SIZE + self.SPACE)
         # PATCH: info 영역을 2행으로 (세로줄 없음)
         self.INFO_HEIGHT  = self.LINE_HEIGHT
-        self.INFO_ROWS    = 2
+        self.INFO_ROWS    = 1
         self.INFO_BLOCK_H = int(self.INFO_ROWS * self.INFO_HEIGHT)
         # ② 컬럼 폭 (왼쪽 기호 칸은 좁게)
         #    [Planet(기호), Phasis, Time]
@@ -290,9 +290,7 @@ class PhasisWnd(commonwnd.CommonWnd):
         draw = ImageDraw.Draw(img)
 
         # --- [A] info 2행 (세로줄 없음, 중앙정렬) ---
-        ext, alt = self._get_extinction_and_altitude()
-        txt_info1 = u"Atmospheric Extinction: %.4f mag/airmass at %.0f m" % (ext, alt)
-        txt_info2 = u"Exact Heliacal Risings/Settings \u00B1%d days" % (PHASIS_WINDOW_DAYS,)
+        txt_info1 = u"Heliacal Risings/Settings \u00B1%d days" % (PHASIS_WINDOW_DAYS,)
 
         info_x = BOR
         info_w = self.TITLE_WIDTH
@@ -302,11 +300,6 @@ class PhasisWnd(commonwnd.CommonWnd):
         w1, h1 = draw.textsize(txt_info1, self.fntText)
         draw.text((info_x + (info_w - w1)/2, BOR + (row_h - h1)/2),
                 txt_info1, fill=txtclr, font=self.fntText)
-        # 2행
-        y_info2 = BOR + row_h
-        w2, h2 = draw.textsize(txt_info2, self.fntText)
-        draw.text((info_x + (info_w - w2)/2, y_info2 + (row_h - h2)/2),
-                txt_info2, fill=txtclr, font=self.fntText)
 
         # --- [B] 헤더(Planet/Phasis/Time) ---
         head_y = BOR + self.INFO_BLOCK_H  # ← info 2행 아래
