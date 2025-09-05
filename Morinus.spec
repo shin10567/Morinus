@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['morinus.py'],
-             pathex=['C:\\morinus-src\\morinus-code-ver-shin10567'],
+             pathex=['C:\\morinus-src\\morinus-code'],
              binaries=[('SWEP\\src\\Windows\\32bit\\sweastrology.pyd', '.')],
              datas=[('Res', 'Res'), ('Hors', 'Hors'), ('Opts', 'Opts'), ('Data', 'Data'), ('SWEP\\Ephem', 'SWEP\\Ephem'), ('Morinus.ico', '.')],
              hiddenimports=[],

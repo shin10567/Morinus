@@ -283,7 +283,7 @@ class MFrame(wx.Frame):
 		self.mtable.Append(self.ID_ZodiacalReleasing, u"Zodiacal releasing\tCtrl+1", u"Time-lord releasing (ZR)")
 		self.mtable.Append(self.ID_Phasis, u"Helical risings/settings\tCtrl+2", u"Heliacal visibility")
 		self.mtable.Append(self.ID_Paranatellonta, u"Paranatellonta\tCtrl+3", u"Planets and fixed stars on the 4 angles")
-		self.mtable.Append(self.ID_Circumambulation, u"Circumambulation\tCtrl+4", u"Distributions through the bounds (true ascension)")
+		self.mtable.Append(self.ID_Circumambulation, u"Circumambulations\tCtrl+4", u"Distributions through the bounds (true ascension)")
 		self.mtable.Append(self.ID_FixStarAngleDirs, u"Angular directions of fixed stars\tCtrl+5", u"Mundane fixed stars hitting ASC/MC/DSC/IC (Naibod)")
 
 		#Charts-menu
@@ -3075,7 +3075,7 @@ class MFrame(wx.Frame):
 # Elias -  V 8.0.5
 # Roberto - V 7.4.4-804
 
-		info.Version = '8.4.2'
+		info.Version = '8.4.3'
 # ###########################################
 		info.Copyright = mtexts.txts['FreeSoft']
 		info.Description = mtexts.txts['Description']+str(astrology.swe_version())

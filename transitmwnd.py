@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import wx
 import os
 import astrology
@@ -177,16 +178,40 @@ class TransitMonthWnd(commonwnd.CommonWnd):
 					draw.text((x+summa+offset+wpt+wsp, y+(self.LINE_HEIGHT-hasp)/2), common.common.Aspects[self.trans[idx].aspect], fill=clrasp, font=self.fntAspects)
 					draw.text((x+summa+offset+wpt+wsp+wasp+wsp, y+(self.LINE_HEIGHT-hascmc)/2), self.txtascmc[self.trans[idx].obj], fill=txtclr, font=self.fntText)
 				elif self.trans[idx].objtype == transits.Transit.SIGN:
-					s2 = self.trans[idx].obj
-					s1 = 11
-					if s2 > 0:
-						s1 = s2-1
-					txts1 = self.signs[s1]
+					# --- 새 로직: transits.py 에서 미리 계산해준 좌/우 사인 지표를 우선 사용 ---
+					# 존재하면 sign_left=왼쪽, sign_right=오른쪽 (요청한 규칙 반영: 역행 입궁 시 왼쪽=떠나온 궁, 오른쪽=입궁 궁)
+					has_lr = hasattr(self.trans[idx], 'sign_left') and hasattr(self.trans[idx], 'sign_right')
+					use_lr = False
+					if has_lr:
+						try:
+							# chart.Chart.NONE 이 아니면 정상값
+							if self.trans[idx].sign_left != chart.Chart.NONE and self.trans[idx].sign_right != chart.Chart.NONE:
+								s_left = self.trans[idx].sign_left
+								s_right = self.trans[idx].sign_right
+								use_lr = True
+						except:
+							use_lr = False
+
+					if not use_lr:
+						# --- 호환용 fallback ---
+						# s2 = '입궁하는' 사인(기존 obj). 여기서는 기존 표기(왼쪽=이전, 오른쪽=입궁)를 유지.
+						# 역행 판정 필드가 있으면 그때만 좌/우를 뒤집어준다.
+						s2 = self.trans[idx].obj  # entering sign index
+						# 기본: 순행 가정 (왼쪽=이전 사인)
+						s_left = (s2 + 11) % 12
+						s_right = s2
+						# 역행 정보가 있으면, 요청대로 왼쪽=떠나온(=s2의 다음), 오른쪽=입궁(s2)
+						if hasattr(self.trans[idx], 'pltretr') and self.trans[idx].pltretr:
+							s_left = (s2 + 1) % 12
+							s_right = s2
+
+					txts1 = self.signs[s_left]
 					ws1,hs1 = draw.textsize(txts1, self.fntSigns)
 					txtsepa = '|'
 					wse,hse = draw.textsize(txtsepa, self.fntText)
-					txts2 = self.signs[s2]
+					txts2 = self.signs[s_right]
 					ws2,hs2 = draw.textsize(txts2, self.fntSigns)
+
 					offset = (offs[i]-(wpt+wsp+ws1+wse+ws2))/2
 					draw.text((x+summa+offset, y+(self.LINE_HEIGHT-hpt)/2), txtpt, fill=clrp1, font=self.fntMorinus)
 					draw.text((x+summa+offset+wpt+wsp, y+(self.LINE_HEIGHT-hs1)/2), txts1, fill=txtclr, font=self.fntSigns)

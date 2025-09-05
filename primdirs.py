@@ -169,7 +169,44 @@ class PrimDirs:
 		if self.dodesc >= 360.0:
 			self.dodesc -= 360.0
 
+		try:
+			# chart.options를 우선 사용(LoF 공식/섹트 등 전역 옵션 반영)
+			opts = getattr(self.chart, 'options', self.options)
+
+			# 1) Fortune(LoF) 재생성
+			# Sun이 지평선 위인지(주/야) – 차트에서 쓰는 단순 판정과 동일하게 씁니다.
+			abovehor = self.chart.planets.planets[astrology.SE_SUN].abovehorizon
+
+			self.chart.fortune = fortune.Fortune(
+				opts.lotoffortune,
+				self.chart.houses.ascmc2,
+				self.chart.raequasc,
+				self.chart.planets,
+				self.chart.obl[0],
+				self.chart.place.lat,
+				abovehor
+			)
+
+			# Fortune(LoF)을 전역 옵션으로 갱신한 '바로 다음'에 munfortune도 갱신
+			try:
+				self.chart.munfortune = fortune.MundaneFortune(self.chart, opts)
+			except Exception:
+				pass
+
+			# 2) (권장) LoF에 의존하는 antiscia도 재구성/재계산
+			if hasattr(self.chart, 'antiscia'):
+				if hasattr(self.chart.antiscia, 'recalc'):
+					self.chart.antiscia.recalc(self.chart, opts)
+				else:
+					import antiscia
+					self.chart.antiscia = antiscia.Antiscia(self.chart, opts)
+		except Exception:
+			# Fortune/antiscia 재계산 실패해도 PD 자체는 진행
+			pass
+
 		self.calc()
+#       self.sort()
+
 #		self.sort()
 
 		self.pds = self.qsort(self.pds)
@@ -206,6 +243,39 @@ class PrimDirs:
 			if self.chart.htype == chart.Chart.RADIX and self.options.pdantiscia:
 				self.calcAntiscia2HouseCusps(True)
 		if self.options.primarydir == PrimDirs.PLACIDIANSEMIARC and self.options.pdlof[1]:
+			# LoF 공식 변경을 문데인 루틴에 '반드시' 반영: Fortune/Antiscia 최신화
+			try:
+				opts = getattr(self.chart, 'options', self.options)
+				# Sun이 지평선 위인지(주/야) – 차트에서 쓰는 단순 판정과 동일하게 씁니다.
+				abovehor = self.chart.planets.planets[astrology.SE_SUN].abovehorizon
+
+				self.chart.fortune = fortune.Fortune(
+					opts.lotoffortune,
+					self.chart.houses.ascmc2,
+					self.chart.raequasc,
+					self.chart.planets,
+					self.chart.obl[0],
+					self.chart.place.lat,
+					abovehor
+				)
+
+				# Fortune(LoF)을 전역 옵션으로 갱신한 '바로 다음'에 munfortune도 갱신
+				try:
+					self.chart.munfortune = fortune.MundaneFortune(self.chart, opts)
+				except Exception:
+					pass
+
+				# 2) 안티샤/컨트라안티샤도 LoF에 종속되므로 함께 재계산
+				if hasattr(self.chart, 'antiscia'):
+					if hasattr(self.chart.antiscia, 'recalc'):
+						self.chart.antiscia.recalc(self.chart, opts)
+					else:
+						import antiscia
+						self.chart.antiscia = antiscia.Antiscia(self.chart, opts)
+			except Exception:
+				# 실패하더라도 PD 자체는 진행
+				pass
+
 			self.calcPlanets2MLoF()
 			if self.chart.htype == chart.Chart.RADIX and self.options.pdantiscia:
 				self.calcAntiscia2MLoF()
@@ -572,7 +642,7 @@ class PrimDirs:
 
 			cant = self.chart.antiscia.plcontraant[i]
 			loncant = cant.lon
-			latcant = cant.lon
+			latcant = cant.lat
 			self.toZodAscMC(loncant, latcant, i, PrimDir.CONTRAANT)
 
 		#Antiscia/Contraant of LoF
@@ -588,8 +658,8 @@ class PrimDirs:
 
 			#Contra
 			cant = self.chart.antiscia.lofcontraant
-			ralofcant = ant.ra
-			decllofcant = ant.decl
+			ralofcant = cant.ra
+			decllofcant = cant.decl
 			val = math.tan(math.radians(self.chart.place.lat))*math.tan(math.radians(decllofcant))
 			if math.fabs(val) <= 1.0:
 				adlat = math.degrees(math.asin(val))
@@ -615,8 +685,8 @@ class PrimDirs:
 		#Contraantiscia of AscMC
 		for i in range(2):
 			cant = self.chart.antiscia.ascmccontraant[i]
-			racant = ant.ra
-			declcant = ant.decl
+			racant = cant.ra
+			declcant = cant.decl
 
 			val = math.tan(math.radians(self.chart.place.lat))*math.tan(math.radians(declcant))
 			if math.fabs(val) > 1.0:

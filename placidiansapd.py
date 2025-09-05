@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import math
 import astrology
 import primdirs
@@ -1024,12 +1025,12 @@ class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 
 			#Contra
 			cant = self.chart.antiscia.lofcontraant
-			ralofcant = ant.ra
-			decllofcant = ant.decl
+			ralofcant = cant.ra
+			decllofcant = cant.decl
 			val = math.tan(math.radians(self.chart.place.lat))*math.tan(math.radians(decllofcant))
 			if math.fabs(val) <= 1.0:
 				adlat = math.degrees(math.asin(val))
-				self.toLoF(primdirs.PrimDir.ANTISCIONLOF, primdirs.PrimDir.NONE, ralofcant, adlat, chart.Chart.CONJUNCTIO)
+				self.toLoF(primdirs.PrimDir.CONTRAANTLOF, primdirs.PrimDir.NONE, ralofcant, adlat, chart.Chart.CONJUNCTIO)
 
 		#Antiscia of AscMC
 		for i in range(2):
@@ -1148,12 +1149,12 @@ class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 
 			#Contra
 			cant = self.chart.antiscia.lofcontraant
-			ralofcant = ant.ra
-			decllofcant = ant.decl
+			ralofcant = cant.ra
+			decllofcant = cant.decl
 			val = math.tan(math.radians(self.chart.place.lat))*math.tan(math.radians(decllofcant))
 			if math.fabs(val) <= 1.0:
 				adlat = math.degrees(math.asin(val))
-				self.toSyzygy(primdirs.PrimDir.ANTISCIONLOF, primdirs.PrimDir.NONE, ralofcant, adlat, chart.Chart.CONJUNCTIO)
+				self.toSyzygy(primdirs.PrimDir.CONTRAANTLOF, primdirs.PrimDir.NONE, ralofcant, adlat, chart.Chart.CONJUNCTIO)
 
 		#Antiscia of AscMC
 		for i in range(2):
@@ -1174,8 +1175,8 @@ class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 		#Contraantiscia of AscMC
 		for i in range(2):
 			cant = self.chart.antiscia.ascmccontraant[i]
-			racant = ant.ra
-			declcant = ant.decl
+			racant = cant.ra
+			declcant = cant.decl
 			val = math.tan(math.radians(self.chart.place.lat))*math.tan(math.radians(declcant))
 			if math.fabs(val) > 1.0:
 				continue
@@ -1661,7 +1662,7 @@ class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 					#This is only conjunction, so bianchini is the same
 					#calc real(wahre)ra and adlat
 #					raprom, declprom = util.getRaDecl(lon, pllat, self.chart.obl[0])
-					raprom, declprom, dist = astrology.swe_cotrans(lon, pllat, 1.0, -self.chart.obl[0])
+					raprom, declprom, dist = astrology.swe_cotrans(lonprom, pllat, 1.0, -self.chart.obl[0])
 					val = math.tan(math.radians(self.chart.place.lat))*math.tan(math.radians(declprom))
 					if math.fabs(val) > 1.0:
 						continue
@@ -1863,8 +1864,8 @@ class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 			if self.abort.abort:
 				return
 
-			ok = pars[i].valid
-			points = pars[i].pts
+			ok = pars[p].valid
+			points = pars[p].pts
 
 			if not ok:
 				continue
@@ -2083,6 +2084,13 @@ class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 
 
 	def calcPlanets2MLoF(self):
+		# LoF 최신 좌표를 Fortune에서 직접 꺼내서 지역변수로 고정
+		ralof  = self.chart.fortune.fortune[fortune.Fortune.RA]
+		declof = self.chart.fortune.fortune[fortune.Fortune.DECL]
+		# 위도에 따른 adlat(아크 반경)도 LoF의 '현재 decl'로 즉석 계산
+		val = math.tan(math.radians(self.chart.place.lat)) * math.tan(math.radians(declof))
+		adlat_ok = (abs(val) <= 1.0)
+		adlatlof = math.degrees(math.asin(val)) if adlat_ok else None
 		for p in range(len(self.chart.planets.planets)):
 			if not self.options.promplanets[p]:
 				continue
@@ -2583,6 +2591,28 @@ class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 
 
 	def toMundaneLoF(self, idprom, idprom2, raprom, adprom, calcsecmotion=True):
+
+		# LoF 공식 변경 반영: 먼저 mundane fortune을 최신 옵션으로 동기화
+		try:
+			opts = getattr(self.chart, 'options', self.options)
+			self.chart.munfortune = fortune.MundaneFortune(self.chart, opts)
+		except Exception:
+			pass
+
+		sig = self.chart.fortune.fortune  # [LON, LAT, RA, DECL]
+		mspec_local = placspec.PlacidianSpeculum(
+			self.chart.place.lat,
+			self.chart.houses.ascmc2,
+			sig[fortune.Fortune.LON],
+			sig[fortune.Fortune.LAT],
+			sig[fortune.Fortune.RA],
+			sig[fortune.Fortune.DECL]
+		)
+		spec_local = mspec_local.speculum
+		self._mlof_spec  = mspec_local.speculum
+		self._mlof_above = mspec_local.abovehorizon
+		self._mlof_east  = mspec_local.eastern
+
 		SINISTER = 0
 		DEXTER = 1
 
@@ -2603,14 +2633,14 @@ class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 
 				t, v, ra, mdpersasig = 0, 0, 0.0, 0.0
 				if sigasp == chart.Chart.CONJUNCTIO:
-					t, v, ra = self.getvars(self.chart.munfortune.speculum.abovehorizon, self.chart.munfortune.speculum.eastern)
+					t, v, ra = self.getvars(self._mlof_above, self._mlof_east)
 
-					mdsig = math.fabs(self.chart.munfortune.speculum.speculum[placspec.PlacidianSpeculum.MD])
-					sasig = math.fabs(self.chart.munfortune.speculum.speculum[placspec.PlacidianSpeculum.SA])
+					mdsig = math.fabs(spec_local[placspec.PlacidianSpeculum.MD])
+					sasig = math.fabs(spec_local[placspec.PlacidianSpeculum.SA])
 
 					mdpersasig = mdsig/sasig
 				else:
-					pmpsig = self.chart.munfortune.speculum.speculum[placspec.PlacidianSpeculum.PMP]
+					pmpsig = self._mlof_spec[placspec.PlacidianSpeculum.PMP]
 					pmpap = pmpsig+aspect
 					pmpap = util.normalize(pmpap)
 
@@ -2951,20 +2981,35 @@ class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 
 
 	def calcArcWithSMMLoF(self, idprom, sigasp, aspect, arc):
+
+		if not hasattr(self, '_mlof_spec') or self._mlof_spec is None:
+			sig = self.chart.fortune.fortune
+			mspec_local = placspec.PlacidianSpeculum(
+				self.chart.place.lat,
+				self.chart.houses.ascmc2,
+				sig[fortune.Fortune.LON],
+				sig[fortune.Fortune.LAT],
+				sig[fortune.Fortune.RA],
+				sig[fortune.Fortune.DECL]
+			)
+			self._mlof_spec  = mspec_local.speculum
+			self._mlof_above = mspec_local.abovehorizon
+			self._mlof_east  = mspec_local.eastern
+
 		sm = secmotion.SecMotion(self.chart.time, self.chart.place, idprom, arc, self.chart.place.lat, self.chart.houses.ascmc2, self.options.topocentric)
 		raprom = sm.planet.speculums[primdirs.PrimDirs.PLACSPECULUM][planets.Planet.RA]
 		adprom = sm.planet.speculums[primdirs.PrimDirs.PLACSPECULUM][planets.Planet.ADLAT]
 
 		t, v, ra, mdpersasig = 0, 0, 0.0, 0.0
 		if sigasp == chart.Chart.CONJUNCTIO:
-			t, v, ra = self.getvars(self.chart.munfortune.speculum.abovehorizon, self.chart.munfortune.speculum.eastern)
+			t, v, ra = self.getvars(self._mlof_above, self._mlof_east)
 
-			mdsig = math.fabs(self.chart.munfortune.speculum.speculum[placspec.PlacidianSpeculum.MD])
-			sasig = math.fabs(self.chart.munfortune.speculum.speculum[placspec.PlacidianSpeculum.SA])
+			mdsig = math.fabs(self._mlof_spec[placspec.PlacidianSpeculum.MD])
+			sasig = math.fabs(self._mlof_spec[placspec.PlacidianSpeculum.SA])
 
 			mdpersasig = mdsig/sasig
 		else:
-			pmpsig = self.chart.munfortune.speculum.speculum[placspec.PlacidianSpeculum.PMP]
+			pmpsig = self._mlof_spec[placspec.PlacidianSpeculum.PMP]
 			pmpap = pmpsig+aspect
 			pmpap = util.normalize(pmpap)
 

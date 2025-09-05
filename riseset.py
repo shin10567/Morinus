@@ -1,99 +1,102 @@
+
+# -*- coding: utf-8 -*-
 import math
 import astrology
 import chart
 import planets
 import mtexts
 import util
-
+import math
+ANGLE_LABELS = ('Asc','MC','Dsc','IC')
 
 class RiseSet:
-	"""Computes Rise/Set times (for the birthday)"""
+    """Computes Rise/Set times (for the birthday)"""
 
-	RISE, MC, SET, IC = range(0, 4)
+    RISE, MC, SET, IC = range(0, 4)
 
-	Angles = [astrology.SE_CALC_RISE, astrology.SE_CALC_MTRANSIT , astrology.SE_CALC_SET,  astrology.SE_CALC_ITRANSIT]
+    Angles = [astrology.SE_CALC_RISE, astrology.SE_CALC_MTRANSIT , astrology.SE_CALC_SET,  astrology.SE_CALC_ITRANSIT]
 
-	def __init__(self, jd, cal, lon, lat, alt, pls):
-		self.jd = jd
-		self.cal = cal
-		self.lon = lon
-		self.lat = lat
-		self.alt = alt
+    def __init__(self, jd, cal, lon, lat, alt, tz_hours, pls):
+        self.jd = jd
+        self.cal = cal
+        self.lon = lon
+        self.lat = lat
+        self.alt = alt
 
-		self.calflag = astrology.SE_GREG_CAL
-		if self.cal == chart.Time.JULIAN:
-			self.calflag = astrology.SE_JUL_CAL
+        self.calflag = astrology.SE_GREG_CAL
+        if self.cal == chart.Time.JULIAN:
+            self.calflag = astrology.SE_JUL_CAL
+        self.tz_offs_days = float(tz_hours) / 24.0
+        #self.offs = lon*4.0/1440.0
 
-#		self.offs = lon*4.0/1440.0
+        self.times = []
 
-		self.times = []
-
-		self.calcTimes()
-	
+        self.calcTimes()
+    
 #		self.printRiseSet(pls)
 
 
-	def calcTimes(self):
-		#the date we get from julianday is the same as year, month day in Time-class but we didn't pass it to the init function.
-		oyear, omonth, oday, otim = astrology.swe_revjul(self.jd, self.calflag)
+    def calcTimes(self):
+        #the date we get from julianday is the same as year, month day in Time-class but we didn't pass it to the init function.
+        oyear, omonth, oday, otim = astrology.swe_revjul(self.jd, self.calflag)
+        lyear, lmonth, lday, _ = astrology.swe_revjul(self.jd + self.tz_offs_days, self.calflag)
+        t0 = self.jd - 1.0
+        t1 = self.jd + 1.0
+        numangles = len(RiseSet.Angles)
+        for i in range(planets.Planets.PLANETS_NUM):#Nodes are excluded
+            ar = []
+            pick = {k: None for k in ANGLE_LABELS}  
+            # ---- Fallback: 파란으로 못 잡은 각은 Swiss Ephemeris로 보강 ----
+            SWISS_KIND = {'Asc': astrology.SE_CALC_RISE,
+                        'MC':  astrology.SE_CALC_MTRANSIT,
+                        'Dsc': astrology.SE_CALC_SET,
+                        'IC':  astrology.SE_CALC_ITRANSIT}
 
-		numangles = len(RiseSet.Angles)
-		for i in range(planets.Planets.PLANETS_NUM):#Nodes are excluded
-			ar = []
+            for key in ANGLE_LABELS:
+                if pick[key] is not None:
+                    continue
 
-			#Rise
-			ret, JDRise, serr = astrology.swe_rise_trans(self.jd, i, "", astrology.SEFLG_SWIEPH, RiseSet.Angles[RiseSet.RISE], self.lon, self.lat, self.alt, 0.0, 10.0)
-			tyear, tmonth, tday, ttim = astrology.swe_revjul(JDRise, self.calflag)
-			if oyear != tyear or omonth != tmonth or oday != tday:
-				ret, JDRise, serr = astrology.swe_rise_trans(self.jd-1.0, i, "", astrology.SEFLG_SWIEPH, RiseSet.Angles[RiseSet.RISE], self.lon, self.lat, self.alt, 0.0, 10.0)
+                best_ut = None
+                best_err = 1e9
+                # swe_rise_trans는 앞으로만 찾으므로 씨드 두 개에서 시도
+                for seed in (self.jd - 1.0, self.jd):
+                    ret, tut, serr = astrology.swe_rise_trans(
+                        seed, i, '', astrology.SEFLG_SWIEPH, SWISS_KIND[key],
+                        self.lon, self.lat, float(self.alt), 0.0, 10.0
+                    )
+                    if ret >= 0:
+                        # 표준시 ‘같은 날’을 우선 반영
+                        y, m, d, _ = astrology.swe_revjul(tut + self.tz_offs_days, self.calflag)
+                        if (y == lyear and m == lmonth and d == lday):
+                            pick[key] = tut
+                            break
+                        # 같은 날이 아니면, 그래도 가장 가까운 걸 후보로
+                        err = abs(tut - self.jd)
+                        if err < best_err:
+                            best_err, best_ut = err, tut
+                if pick[key] is None and best_ut is not None:
+                    pick[key] = best_ut
+            # ---- /Fallback ----
 
-			#MC
-			ret, JDMC, serr = astrology.swe_rise_trans(self.jd, i, "", astrology.SEFLG_SWIEPH, RiseSet.Angles[RiseSet.MC], self.lon, self.lat, self.alt, 0.0, 10.0)
-			tyear, tmonth, tday, ttim = astrology.swe_revjul(JDMC, self.calflag)
-			if oyear != tyear or omonth != tmonth or oday != tday:
-				ret, JDMC, serr = astrology.swe_rise_trans(self.jd-1.0, i, "", astrology.SEFLG_SWIEPH, RiseSet.Angles[RiseSet.MC], self.lon, self.lat, self.alt, 0.0, 10.0)
+            for key in ANGLE_LABELS:
+                if pick[key] is None:
+                    hr = 0.0
+                else:
+                    _, _, _, hr = astrology.swe_revjul(pick[key] + self.tz_offs_days, self.calflag)
+                ar.append(hr)
 
-			#Set
-			ret, JDSet, serr = astrology.swe_rise_trans(self.jd, i, "", astrology.SEFLG_SWIEPH, RiseSet.Angles[RiseSet.SET], self.lon, self.lat, self.alt, 0.0, 10.0)
-			tyear, tmonth, tday, ttim = astrology.swe_revjul(JDSet, self.calflag)
-			if oyear != tyear or omonth != tmonth or oday != tday:
-				ret, JDSet, serr = astrology.swe_rise_trans(self.jd-1.0, i, "", astrology.SEFLG_SWIEPH, RiseSet.Angles[RiseSet.SET], self.lon, self.lat, self.alt, 0.0, 10.0)
-
-			#IC
-			ret, JDIC, serr = astrology.swe_rise_trans(self.jd, i, "", astrology.SEFLG_SWIEPH, RiseSet.Angles[RiseSet.IC], self.lon, self.lat, self.alt, 0.0, 10.0)
-			tyear, tmonth, tday, ttim = astrology.swe_revjul(JDIC, self.calflag)
-			if oyear != tyear or omonth != tmonth or oday != tday:
-				ret, JDIC, serr = astrology.swe_rise_trans(self.jd-1.0, i, "", astrology.SEFLG_SWIEPH, RiseSet.Angles[RiseSet.IC], self.lon, self.lat, self.alt, 0.0, 10.0)
-
-			#From GMT to Local
-#			JDRise += self.offs
-			year, month, day, hr = astrology.swe_revjul(JDRise, self.calflag)
-			ar.append(hr)
-
-#			JDMC += self.offs
-			year, month, day, hr = astrology.swe_revjul(JDMC, self.calflag)
-			ar.append(hr)
-
-#			JDSet += self.offs
-			year, month, day, hr = astrology.swe_revjul(JDSet, self.calflag)
-			ar.append(hr)
-
-#			JDIC += self.offs
-			year, month, day, hr = astrology.swe_revjul(JDIC, self.calflag)
-			ar.append(hr)
-
-			self.times.append(ar)
+            self.times.append(ar)
 
 
-	def printRiseSet(self, pls):
-		numangles = len(RiseSet.Angles)
-		txt = [mtexts.txtsriseset['Rise'], mtexts.txtsriseset['MC'], mtexts.txtsriseset['Set'], mtexts.txtsriseset['IC']]
-		print ''
-		print 'Rise/Set times:'
-		for i in range(planets.Planets.PLANETS_NUM):#Nodes are excluded
-			for angle in range(numangles):
-				h,m,s = util.decToDeg(self.times[i][angle])
-				print "%s: %s: %02d:%02d:%02d" % (pls.planets[i].name, txt[angle], h, m, s)
+    def printRiseSet(self, pls):
+        numangles = len(RiseSet.Angles)
+        txt = [mtexts.txtsriseset['Rise'], mtexts.txtsriseset['MC'], mtexts.txtsriseset['Set'], mtexts.txtsriseset['IC']]
+        print ''
+        print 'Rise/Set times:'
+        for i in range(planets.Planets.PLANETS_NUM):#Nodes are excluded
+            for angle in range(numangles):
+                h,m,s = util.decToDeg(self.times[i][angle])
+                print "%s: %s: %02d:%02d:%02d" % (pls.planets[i].name, txt[angle], h, m, s)
 
 
 

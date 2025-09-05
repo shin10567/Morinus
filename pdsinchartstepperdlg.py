@@ -41,17 +41,17 @@ class PDsInChartStepperDlg(wx.Dialog):
 		self.options = opts
 		self.terrestrial = terrestrial
 
-        # Instead of calling wx.Dialog.__init__ we precreate the dialog
-        # so we can set an extra style that must be set before
-        # creation, and then we create the GUI object using the Create
-        # method.
+		# Instead of calling wx.Dialog.__init__ we precreate the dialog
+		# so we can set an extra style that must be set before
+		# creation, and then we create the GUI object using the Create
+		# method.
 		pre = wx.PreDialog()
 		pre.SetExtraStyle(wx.DIALOG_EX_CONTEXTHELP)
 		pre.Create(parent, -1, mtexts.txts['PDsInChart'], pos=wx.DefaultPosition, size=wx.DefaultSize, style=wx.DEFAULT_DIALOG_STYLE)
 
-        # This next step is the most important, it turns this Python
-        # object into the real wrapper of the dialog (instead of pre)
-        # as far as the wxPython extension is concerned.
+		# This next step is the most important, it turns this Python
+		# object into the real wrapper of the dialog (instead of pre)
+		# as far as the wxPython extension is concerned.
 		self.PostCreate(pre)
 
 		#main vertical sizer
@@ -193,7 +193,7 @@ class PDsInChartStepperDlg(wx.Dialog):
 		if wx.Platform != '__WXMSW__':
 			btn = wx.ContextHelpButton(self)
 			btnsizer.AddButton(btn)
-        
+		
 		btnOk = wx.Button(self, wx.ID_OK, mtexts.txts['Ok'])
 		btnOk.SetHelpText(mtexts.txts['HelpOk'])
 		btnOk.SetDefault()
@@ -360,9 +360,9 @@ class PDsInChartStepperDlg(wx.Dialog):
 						pdchart = chart.Chart(self.chart.name, self.chart.male, self.chart.time, self.chart.place, chart.Chart.PDINCHART, '', self.options, False)#, proftype, nolat)
 						raequasc, declequasc, dist = astrology.swe_cotrans(pdchart.houses.ascmc[houses.Houses.EQUASC], 0.0, 1.0, -self.chart.obl[0])
 						pdchart.planets.calcMundaneWithoutSM(da, self.chart.obl[0], pdchart.place.lat, pdchart.houses.ascmc2, raequasc)
-
-					pdchart.fortune.recalcForMundaneChart(self.chart.fortune.fortune[fortune.Fortune.LON], self.chart.fortune.fortune[fortune.Fortune.LAT], self.chart.fortune.fortune[fortune.Fortune.RA], self.chart.fortune.fortune[fortune.Fortune.DECL], pdchart.houses.ascmc2, pdchart.raequasc, pdchart.obl[0], pdchart.place.lat)
-
+						pdchart.fortune.calcFullAstronomicalProc(self.chart.fortune, da, self.chart.obl[0])
+					#pdchart.fortune.recalcForMundaneChart(self.chart.fortune.fortune[fortune.Fortune.LON], self.chart.fortune.fortune[fortune.Fortune.LAT], self.chart.fortune.fortune[fortune.Fortune.RA], self.chart.fortune.fortune[fortune.Fortune.DECL], pdchart.houses.ascmc2, pdchart.raequasc, pdchart.obl[0], pdchart.place.lat)
+					pdchart.fortune.recalcForMundaneChart(pdchart.fortune.fortune[fortune.Fortune.LON], pdchart.fortune.fortune[fortune.Fortune.LAT], pdchart.fortune.fortune[fortune.Fortune.RA], pdchart.fortune.fortune[fortune.Fortune.DECL], pdchart.houses.ascmc2, pdchart.raequasc, pdchart.obl[0], pdchart.place.lat)
 				keytxt = mtexts.typeListDyn[self.options.pdkeyd]
 				if not self.options.pdkeydyn:
 					keytxt = mtexts.typeListStat[self.options.pdkeys]

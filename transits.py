@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import astrology
 import chart
 import fortune
@@ -29,7 +30,8 @@ class Transit:
 		self.house = chart.Chart.NONE
 		self.day = chart.Chart.NONE
 		self.time = 0.0
-
+		self.sign_left = chart.Chart.NONE   # 표시에 쓸 '왼쪽' 사인 인덱스
+		self.sign_right = chart.Chart.NONE  # 표시에 쓸 '오른쪽' 사인 인덱스
 
 class Transits:
 	NONE = -1
@@ -51,6 +53,12 @@ class Transits:
 		self.flags = astrology.SEFLG_SPEED+astrology.SEFLG_SWIEPH
 		if chrt.options.topocentric:
 			self.flags += astrology.SEFLG_TOPOCTR
+			# sidereal if ayanamsha is enabled
+			if chrt.options.ayanamsha != 0:
+				self.flags += astrology.SEFLG_SIDEREAL
+		# Sidereal mode for transits if ayanamsha is enabled
+		if chrt.options.ayanamsha != 0:
+			self.flags += astrology.SEFLG_SIDEREAL
 
 		lastday = 1
 		for day in range(1, 31):
@@ -90,6 +98,15 @@ class Transits:
 			self.flags = astrology.SEFLG_SPEED+astrology.SEFLG_SWIEPH
 			if chrt.options.topocentric:
 				self.flags += astrology.SEFLG_TOPOCTR
+				# sidereal if ayanamsha is enabled
+				if chrt.options.ayanamsha != 0:
+					self.flags += astrology.SEFLG_SIDEREAL
+			# sidereal if ayanamsha is enabled
+			if chrt.options.ayanamsha != 0:
+				self.flags += astrology.SEFLG_SIDEREAL
+			# Sidereal mode for transits if ayanamsha is enabled
+			if chrt.options.ayanamsha != 0:
+				self.flags += astrology.SEFLG_SIDEREAL
 
 		time1 = chart.Time(year, month, day, 0, 0, 0, False, chrt.time.cal, chart.Time.GREENWICH, True, 0, 0, False, chrt.place, False)
 		time2 = chart.Time(year, month, day+1, 0, 0, 0, False, chrt.time.cal, chart.Time.GREENWICH, True, 0, 0, False, chrt.place, False)
@@ -132,10 +149,12 @@ class Transits:
 						continue
 					for k in range (planets.Planets.PLANETS_NUM-2):
 						lon = chrt.planets.planets[k].data[planets.Planet.LONG]
+						if chrt.options.ayanamsha != 0:
+							lon = util.normalize(lon - chrt.ayanamsha)
 						if l == 0:
-							lon += chart.Chart.Aspects[a]
-							if lon > 360.0:
-								lon -= 360.0
+								lon += chart.Chart.Aspects[a]
+								if lon > 360.0:
+									lon -= 360.0
 						else:
 							lon -= chart.Chart.Aspects[a]
 							if lon < 0.0:
@@ -148,6 +167,9 @@ class Transits:
 					#ascmc
 					for h in range(2):
 						lon = chrt.houses.ascmc[h]
+						if chrt.options.ayanamsha != 0:
+							lon = util.normalize(lon - chrt.ayanamsha)
+
 						if l == 0:
 							lon += chart.Chart.Aspects[a]
 							if lon > 360.0:
@@ -159,23 +181,21 @@ class Transits:
 
 						tr = self.get(planet1, planet2, time1, chrt, lon, j, h, a, Transits.HOUR, Transit.ASCMC)
 						if tr != None:
-							self.transits.append(tr)						
-
+							self.transits.append(tr)
+											
 			#signs
 			signs = [0.0, 30.0, 60.0, 90.0, 120.0, 150.0, 180.0, 210.0, 240.0, 270.0, 300.0, 330.0]
-			for s in range(len(signs)):
-				lona = signs[s]
-				if chrt.options.ayanamsha != 0:
-					lona += chrt.ayanamsha
-					lona = util.normalize(lona)
-
+			for sgn in range(len(signs)):
+				lona = signs[sgn]
 				tr = self.get(planet1, planet2, time1, chrt, lona, j, 0, 0, Transits.HOUR, Transit.SIGN)
 				if tr != None:
-					self.transits.append(tr)													
+					self.transits.append(tr)
 
 			#Antiscia
 			for p in range (planets.Planets.PLANETS_NUM-2):
 				lona = chrt.antiscia.plantiscia[p].lon
+				if chrt.options.ayanamsha != 0:
+					lona = util.normalize(lona - chrt.ayanamsha)
 #!?				if chrt.options.ayanamsha != 0:
 #					lona += chrt.ayanamsha
 #					lona = util.normalize(lona)
@@ -187,6 +207,8 @@ class Transits:
 			#ContraAntiscia
 			for p in range (planets.Planets.PLANETS_NUM-2):
 				lona = chrt.antiscia.plcontraant[p].lon
+				if chrt.options.ayanamsha != 0:
+					lona = util.normalize(lona - chrt.ayanamsha)
 #!?				if chrt.options.ayanamsha != 0:
 #					lona += chrt.ayanamsha
 #					lona = util.normalize(lona)
@@ -196,7 +218,10 @@ class Transits:
 					self.transits.append(tr)													
 
 			#LoF
-			tr = self.get(planet1, planet2, time1, chrt, chrt.fortune.fortune[fortune.Fortune.LON], j, 0, 0, Transits.HOUR, Transit.LOF)
+			lona = chrt.fortune.fortune[fortune.Fortune.LON]
+			if chrt.options.ayanamsha != 0:
+				lona = util.normalize(lona - chrt.ayanamsha)
+			tr = self.get(planet1, planet2, time1, chrt, lona, j, 0, 0, Transits.HOUR, Transit.LOF)
 			if tr != None:
 				self.transits.append(tr)													
 
@@ -214,7 +239,7 @@ class Transits:
 
 
 	def get(self, planet1, planet2, time1, chrt, lon, j, k, a, unit, typ):
-		if self.check(planet1, planet2, lon):
+		if self.check(planet1.data[planets.Planet.LONG], planet2.data[planets.Planet.LONG], lon):
 			fr = 0
 			to = 60
 			if unit == Transits.HOUR:
@@ -263,7 +288,7 @@ class Transits:
 				planet1 = planets.Planet(time1.jd, j, self.flags)
 				planet2 = planets.Planet(time2.jd, j, self.flags)
 	
-				if self.check(planet1, planet2, lon):
+				if self.check(planet1.data[planets.Planet.LONG], planet2.data[planets.Planet.LONG], lon):
 					un = Transits.OVER
 					if unit == Transits.HOUR:
 						un = Transits.MINUTE
@@ -277,7 +302,31 @@ class Transits:
 						tr.plt = j
 						tr.objtype = typ
 						if typ == Transit.SIGN:
-							tr.obj = int(lon/chart.Chart.SIGN_DEG)
+							# 경계 부동소수 오차 보정
+							eps = 1e-6
+
+							# 이 시각( time1 )의 황경 속도 부호로 순/역행 판정
+							retr = planet1.data[planets.Planet.SPLON] < 0.0
+
+							if retr:
+								# 역행: 경계 바로 아래(-eps)가 ‘입궁하는’ 사인
+								idx = int(util.normalize(lon - eps) / chart.Chart.SIGN_DEG)
+								# 표기 규칙: 왼쪽 = 그 다음 사인(=지금 막 떠나온 궁), 오른쪽 = 입궁하는 궁
+								left_idx  = (idx + 1) % 12
+								right_idx = idx
+							else:
+								# 순행: 경계 바로 위(+eps)가 ‘입궁하는’ 사인
+								idx = int(util.normalize(lon + eps) / chart.Chart.SIGN_DEG)
+								# (참고) 순행 표기는 보통 왼쪽=이전, 오른쪽=입궁 → 기존과 동일
+								left_idx  = (idx + 11) % 12
+								right_idx = idx
+
+							# 기존 호환용: obj엔 ‘입궁하는’ 사인 인덱스를 계속 넣어둔다
+							tr.obj = idx
+
+							# 새로 추가한 좌/우 표기용 인덱스 저장
+							tr.sign_left = left_idx
+							tr.sign_right = right_idx
 						else:
 							tr.obj = k
 
@@ -302,30 +351,30 @@ class Transits:
 		return None
 
 
-	def check(self, planet1, planet2, lon):
-		#Handle 360-0 transitions(Pisces-Aries)
-		if (planet1.data[planets.Planet.LONG] > Transits.CIRCLE-Transits.OFFSET and planet2.data[planets.Planet.LONG] < Transits.OFFSET) or (planet2.data[planets.Planet.LONG] > Transits.CIRCLE-Transits.OFFSET and planet1.data[planets.Planet.LONG] < Transits.OFFSET):
-			if (planet1.data[planets.Planet.LONG] > Transits.CIRCLE-Transits.OFFSET and planet2.data[planets.Planet.LONG] < Transits.OFFSET):
-				if planet1.data[planets.Planet.LONG] <= lon or planet2.data[planets.Planet.LONG] > lon:
-					return True
-			if (planet2.data[planets.Planet.LONG] > Transits.CIRCLE-Transits.OFFSET and planet1.data[planets.Planet.LONG] < Transits.OFFSET):
-				if planet2.data[planets.Planet.LONG] <= lon or planet1.data[planets.Planet.LONG] > lon:
-					return True
+
+	def check(self, lon1, lon2, lon):
+		# Normalize to [0,360)
+		lon1 = util.normalize(lon1); lon2 = util.normalize(lon2); lon = util.normalize(lon)
+		# Signed smallest arc from lon1->lon2 in (-180, 180]
+		delta = (lon2 - lon1 + 540.0) % 360.0 - 180.0
+		if delta == 0.0:
 			return False
-
-		#Handle normal case
-		if (planet1.data[planets.Planet.LONG] <= lon and planet2.data[planets.Planet.LONG] > lon) or (planet2.data[planets.Planet.LONG] <= lon and planet1.data[planets.Planet.LONG] > lon):
+		# Signed offset from lon1->target
+		offs = (lon - lon1 + 540.0) % 360.0 - 180.0
+		if offs == 0.0:
 			return True
-
-		return False
-
-
+		# Prograde vs Retrograde window test
+		if delta > 0.0:
+			return 0.0 < offs <= delta
+		return 0.0 > offs >= delta
+	
+	
 	def printTransits(self, ls):
 		planets = ('Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto')
 		asps = ['conjunctio', 'semisextil', 'semiquadrat', 'sextil', 'quintile', 'quadrat', 'trigon', 'sesquiquadrat', 'biquintile', 'qinqunx', 'oppositio']
 		signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricornus', 'Aquarius', 'Pisces']
 		ascmc = ['Asc', 'MC']
-
+	
 		for tr in ls:
 			d, m, s = util.decToDeg(tr.time)
 			if tr.objtype == Transit.PLANET:
@@ -334,9 +383,9 @@ class Transits:
 				print 'day %d: %s %s %s house:%d %d:%02d:%02d' % (tr.day, planets[tr.plt], asps[tr.aspect], ascmc[tr.obj], tr.house+1, d, m, s)
 			else:
 				print 'day %d: %s %s house:%d %d:%02d:%02d' % (tr.day, planets[tr.plt], signs[tr.obj], tr.house+1, d, m, s)
-
-
-
-
-
-
+	
+	
+	
+	
+	
+	
