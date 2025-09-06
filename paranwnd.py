@@ -521,18 +521,48 @@ def _extract_local_ymd_tz(self):
     D = int(getattr(t, "origday"))
 
     # 2) 시간대(시간 단위, +동경/−서경과 무관)
-    zh = float(getattr(t, "zh", 0))
-    zm = float(getattr(t, "zm", 0))
-    plus = bool(getattr(t, "plus", True))
-    tz = (zh + zm/60.0) * (1.0 if plus else -1.0)
+    # robust timezone sign + DST
+    zh = float(getattr(t, "zh", 0.0))
+    zm = float(getattr(t, "zm", 0.0))
+
+    plus_raw = getattr(t, "plus", True)
+    if isinstance(plus_raw, (int, float)):
+        east = (int(plus_raw) != 0)
+    elif isinstance(plus_raw, str):
+        east = plus_raw.strip().lower() in ("e", "+", "east", "true", "t", "1")
+    else:
+        east = bool(plus_raw)
+
+    tz = (zh + zm/60.0)
+    tz = tz if east else -tz
+
+    # DST 지원: 다양한 필드명 대비 (있으면 사용)
+    dst_h = float(getattr(t, "dzh", getattr(t, "dsh", getattr(t, "dsth", getattr(t, "ds", 0.0)))))
+    dst_m = float(getattr(t, "dzm", getattr(t, "dsm", getattr(t, "dstm", getattr(t, "dm", 0.0)))))
+    dst_flag = bool(getattr(t, "dst", getattr(t, "summer", getattr(t, "summertime", False))))
+    dst_total = dst_h + dst_m/60.0
+    if dst_flag and dst_total == 0.0:
+        dst_total = 1.0  # DST 표시만 있고 수치가 없으면 1시간 가정
+
+    tz += dst_total  # 예) -5(표준) + 1(DST) = -4
+
 
     # 3) 위치(십진도)
     lon = float(p.deglon) + float(p.minlon)/60.0 + float(getattr(p, "seclon", 0.0))/3600.0
-    if not p.east:
-        lon = -lon
     lat = float(p.deglat) + float(p.minlat)/60.0 + float(getattr(p, "seclat", 0.0))/3600.0
-    if not p.north:
+
+    def _is_true(v, pos_letters):
+        if isinstance(v, (int, float)):
+            return int(v) != 0
+        if isinstance(v, str):
+            return v.strip().upper()[:1] in pos_letters  # 'E' or 'N'
+        return bool(v)
+
+    if not _is_true(getattr(p, "east", True), {"E", "+"}):
+        lon = -lon
+    if not _is_true(getattr(p, "north", True), {"N", "+"}):
         lat = -lat
+
     alt = float(getattr(p, "altitude", 0.0))
 
     return (Y, M, D, tz, lon, lat, alt)
@@ -818,8 +848,12 @@ class ParanatellontaWnd(cw.CommonWnd):
         Yp, Mp, Dp, _ = swe.revjul(jd_today_ut - 1.0, swe.GREG_CAL)
         sr_prev, sr_today_again = _sunrise_span_for_local_day(Yp, Mp, Dp, tz, lon, lat, alt)
 
-        jd_ut = getattr(self.horoscope, "jd_ut",
-                        getattr(getattr(self.horoscope, "time", None), "jd", None))
+        tobj = getattr(self.horoscope, "time", None)
+        jd_ut = (
+            getattr(tobj, "jd_ut", None) or
+            getattr(self.horoscope, "jd_ut", None) or
+            getattr(tobj, "jd", None)
+        )
         if jd_ut is None:
             return []
 
@@ -828,7 +862,10 @@ class ParanatellontaWnd(cw.CommonWnd):
         elif sr_prev and sr_today and (sr_prev <= jd_ut < sr_today):
             t0, t1 = sr_prev, sr_today
         else:
-            return []
+            # 폴백: 출생 UT 주변 ±0.6일
+            half = 0.6
+            t0, t1 = jd_ut - half, jd_ut + half
+
 
         _pad = ANGLE_TOL_MIN / 1440.0
         t0_pad, t1_pad = t0 - _pad, t1 + _pad
