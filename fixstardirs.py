@@ -4,6 +4,8 @@ import datetime
 import swisseph as swe
 import os
 import houses
+import common  # Morinus의 ephe 경로 사용 (common.common.ephepath)
+import chart
 import fixstars
 import primdirs
 import common  # Morinus의 ephe 경로 사용 (common.common.ephepath)
@@ -509,14 +511,19 @@ def _observer_lat(horoscope):
         return lat
     except:
         return float(getattr(horoscope, "lat", getattr(horoscope, "latitude", 0.0)))
-
-def _calendar_flag(options):
+def _calendar_flag(chrt, options):
     # 1=Gregorian, 0=Julian
+    try:
+        calobj = getattr(chrt, "time", None)
+        if calobj is not None:
+            return 0 if calobj.cal == chart.Time.JULIAN else 1
+    except Exception:
+        pass
     cal = getattr(options, "calendar", "greg")
-    if isinstance(cal, int):  # 혹시 이미 플래그 정수 저장되는 경우
+    if isinstance(cal, int):
         return 1 if cal != 0 else 0
     cal = str(cal).lower()
-    return 1 if ("greg" in cal or "g" == cal) else 0
+    return 1 if ("greg" in cal or cal == "g") else 0
 def _cat_name_to_code_map():
     """카탈로그 DB에서 name→code 매핑 생성."""
     db = _load_fixstars_cat()
@@ -801,11 +808,11 @@ def _cat_lookup_equ_generic(star_name, path=None):
 
     raise ValueError("Star not found in catalog: {0}".format(star_name))
 
-def _date_string_from_jd(jd_ut, options):
-    gregflag = _calendar_flag(options)  # 1=Greg, 0=Jul
+def _date_string_from_jd(jd_ut, chrt, options):
+    gregflag = _calendar_flag(chrt, options)  # 1=Greg, 0=Jul
     y, m, d, frac = swe.revjul(jd_ut, gregflag)  # UTC 기준
     hh = int(frac * 24.0)
-    mm = int((frac*24.0 - hh)*60.0)
+    mm = int((frac * 24.0 - hh) * 60.0)
     return u"{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d} UTC".format(y, m, d, hh, mm)
 
 def compute_fixedstar_angle_rows(horoscope, options, age_max_years=150.0):
@@ -897,6 +904,6 @@ def compute_fixedstar_angle_rows(horoscope, options, age_max_years=150.0):
     # 4) 날짜 오름차순 정렬 후 문자열화
     rows.sort(key=lambda r: r['jd'])
     for r in rows:
-        r['date'] = _date_string_from_jd(r['jd'], options)
+        r['date'] = _date_string_from_jd(r['jd'], horoscope, options)
 
     return rows

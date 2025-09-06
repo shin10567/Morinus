@@ -4,6 +4,47 @@ from __future__ import division
 import math, datetime
 import astrology
 import math
+import astrology, chart
+from angleatbirth import _fmt_time_chart_local
+
+def jd_to_local_YMD_HM(ch, jd_ut):
+    # 차트 달력 플래그
+    calflag = astrology.SE_GREG_CAL if ch.time.cal == chart.Time.GREGORIAN else astrology.SE_JUL_CAL
+
+    # angleatbirth의 포맷터는 HH.MM.SS만 주니까,
+    # 날짜는 swe_revjul(jd_ut + 오프셋)을 써서 얻습니다.
+    # → 오프셋 산출 로직은 _fmt_time_chart_local과 동일하게 구현.
+    off_days = 0.0
+    zt = ch.time.zt
+    if zt == chart.Time.ZONE:
+        ztime_h = float(getattr(ch.time, 'zh', 0.0) or 0.0) + float(getattr(ch.time, 'zm', 0.0) or 0.0)/60.0
+        off_days += (ztime_h if getattr(ch.time, 'plus', False) else -ztime_h) / 24.0
+    elif zt == chart.Time.LOCALMEAN:  # LMT
+        long_min = (ch.place.deglon + ch.place.minlon/60.0) * 4.0
+        hours = long_min / 60.0
+        off_days += (hours if ch.place.east else -hours) / 24.0
+    elif zt == chart.Time.LOCALAPPARENT:  # LAT
+        long_min = (ch.place.deglon + ch.place.minlon/60.0) * 4.0
+        hours = long_min / 60.0
+        lmt_days = (hours if ch.place.east else -hours) / 24.0
+        # 방정시(EoT)
+        try:
+            ret, te, serr = astrology.swe_time_equ(jd_ut)
+            te_days = te if abs(te) <= 0.5 else te/1440.0
+        except Exception:
+            te_days = 0.0
+        off_days += (lmt_days - te_days)
+    if getattr(ch.time, 'daylightsaving', False):
+        off_days += 1.0/24.0
+
+    # 날짜/시각
+    y, m, d, ut = astrology.swe_revjul(jd_ut + off_days, calflag)
+    hh = int(ut); mm = int((ut - hh)*60.0)
+
+    # 시각 포맷은 기존 함수 재사용(점 표기 유지)
+    hhmmss = _fmt_time_chart_local(ch, jd_ut)  # 예: "06.10.00"
+    return u"{:04d}-{:02d}-{:02d} {}".format(y, m, d, hhmmss)
+
 # --- exact-output caches (py2 fallback 포함) ---
 try:
     from functools import lru_cache
