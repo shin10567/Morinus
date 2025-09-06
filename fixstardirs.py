@@ -6,12 +6,155 @@ import os
 import houses
 import fixstars
 import primdirs
-import fixstars 
 import common  # Morinus의 ephe 경로 사용 (common.common.ephepath)
-try: swe.set_ephe_path(common.common.ephepath)
-except: pass
+#try: swe.set_ephe_path(common.common.ephepath)
+#except: pass
+def _ensure_swisseph_path():
+    # 1) Morinus 설정에서 우선 시도
+    cands = []
+    try:
+        ep = getattr(common.common, 'ephepath', '')
+        if ep:
+            ep = os.path.expandvars(os.path.expanduser(ep))
+            if not os.path.isabs(ep):
+                # 모듈 파일 위치 기준으로 절대경로 변환
+                base = os.path.abspath(os.path.dirname(__file__))
+                ep_abs = os.path.normpath(os.path.join(base, ep))
+                cands += [ep_abs]
+            cands += [ep, os.path.join(ep, 'SWEP', 'Ephem')]
+    except Exception:
+        pass
+    # 2) 모듈 기준 상대 경로들
+    here = os.path.abspath(os.path.dirname(__file__))
+    cands += [
+        os.path.join(here, 'SWEP', 'Ephem'),
+        os.path.join(here, 'Ephem'),
+        here,
+        os.environ.get('SWEPH_PATH', '')  # 환경변수 지원
+    ]
+    # 3) 실제 Swiss Ephemeris 바이너리(se*.se1)가 있는 첫 경로로 설정
+    for p in cands:
+        if not p:
+            continue
+        p = os.path.normpath(p)
+        try:
+            if os.path.isdir(p) and any(fn.lower().startswith(('sepl_', 'sef', 'semo', 'sea'))
+                                        for fn in os.listdir(p)):
+                swe.set_ephe_path(p)
+                return
+        except Exception:
+            continue
+    # 여기까지 못 잡았으면 그대로 두되, 이후 호출부에서 다시 시도/에러 노출
+    # (raise로 끊고 싶으면 RuntimeError(...)를 던지도록 바꿔도 됨)
+
+# 최초 1회 시도(실패해도 지나가게)
+try:
+    _ensure_swisseph_path()
+except Exception:
+    pass
+
 import re
+
 NAIBOD_COEFF = primdirs.PrimDirs.staticData[primdirs.PrimDirs.NAIBOD][3]  # 1.01456164
+# [ADD] ---- Primary Directions Key를 따르는 arc→years 변환 헬퍼 ----
+DEG = math.pi / 180.0
+TROPICAL_YEAR = 365.2421897
+
+def _norm360(x):
+    return x % 360.0
+
+def _sun_coord_deg(jd_ut, equatorial=False):
+    _ensure_swisseph_path()
+    """equatorial=True면 적경(°), False면 황경(°) 반환"""
+    flags = swe.FLG_SWIEPH | (swe.FLG_EQUATORIAL if equatorial else 0)
+    try:
+        vals, _ = swe.calc_ut(jd_ut, swe.SUN, flags)
+    except Exception:
+        # 파일(ephe) 없으면 내부 알고리즘(MOSEPH)로 재시도 → 파일 불필요
+        flags = swe.FLG_MOSEPH | (swe.FLG_EQUATORIAL if equatorial else 0)
+        vals, _ = swe.calc_ut(jd_ut, swe.SUN, flags)
+    lon = vals[0]
+    return _norm360(lon)
+
+
+def _true_solar_arc_years(horoscope, options, arc_deg, direct):
+    """진태양(적경/황경) 동적키: 출생 시점에서 태양 좌표가 arc_deg만큼 변하는 시점까지의 '연수' 반환"""
+    equ  = (options.pdkeyd == primdirs.PrimDirs.TRUESOLAREQUATORIALARC)
+    jd0  = _birth_jd_ut(horoscope)
+    base = _sun_coord_deg(jd0, equ)
+    # Direct이거나(+) / Converse에서도 'Use regressive'가 꺼져 있으면(+) 정방으로, 그렇지 않으면 역방(-)
+    sign = +1.0 if (direct or not getattr(options, 'useregressive', False)) else -1.0
+
+    # 하루 이동량으로 초기 추정: 적경/황경 각각에 대해 실제 하루차로 계측
+    if sign > 0:
+        step = _norm360(_sun_coord_deg(jd0 + 1.0, equ) - base)
+    else:
+        step = _norm360(base - _sun_coord_deg(jd0 - 1.0, equ))
+    if step < 1e-6:
+        step = 0.985647  # 안전한 기본치(황경 기준 하루 이동량)
+    # wrap-around로 2° 근처가 잡히는 드문 케이스 보정(태양은 ~1°/day가 정상)
+    if step > 2.0:
+        step = 360.0 - step
+
+    t0 = 0.0
+    t1 = sign * (arc_deg / step)  # days
+    MAX_DAYS = 400.0  # 1년(≈365d)보다 약간 큰 안전 범위
+    if abs(t1) > MAX_DAYS:
+        t1 = math.copysign(MAX_DAYS, t1)
+
+    def f(t):
+        pos = _sun_coord_deg(jd0 + t, equ)
+        if sign > 0:
+            return _norm360(pos - base) - arc_deg
+        else:
+            return _norm360(base - pos) - arc_deg
+
+    f0 = f(t0)
+    f1 = f(t1)
+    for _ in range(8):
+        denom = (f1 - f0)
+        if abs(denom) < 1e-12:
+            # 기울기 소실 → 폭주 방지: 이분법성 수렴으로 전환
+            t2 = 0.5 * (t1 + t0)
+        else:
+            t2 = t1 - f1 * (t1 - t0) / denom
+
+        # 비정상 추정치(무한/NaN/범위초과) 클램프
+        if not math.isfinite(t2) or abs(t2) > MAX_DAYS:
+            t2 = 0.5 * (t1 + t0)
+
+        t0, f0, t1, f1 = t1, f1, t2, f(t2)
+        if abs(t1 - t0) < 1e-6 or abs(f1) < 1e-9:
+            break
+    return abs(t1)  
+
+def _birthday_solar_arc_years(horoscope, options, arc_deg):
+    """생일태양(적경/황경) 동적키: 출생일과 다음날 태양 이동량으로 환산"""
+    equ = (options.pdkeyd == primdirs.PrimDirs.BIRTHDAYSOLAREQUATORIALARC)
+    jd0 = _birth_jd_ut(horoscope)
+    c0 = _sun_coord_deg(jd0, equ)
+    c1 = _sun_coord_deg(jd0 + 1.0, equ)
+    d = _norm360(c1 - c0)
+    return (arc_deg / d) if d != 0.0 else 0.0
+
+def _arc_to_years_from_primary_key(horoscope, options, arc_deg, direct):
+    """PrimDirs의 calcTime 로직을 최소 구현(정적키/동적키 모두 지원)"""
+    if options.pdkeydyn:
+        # 동적 키
+        if options.pdkeyd in (primdirs.PrimDirs.TRUESOLAREQUATORIALARC,
+                              primdirs.PrimDirs.TRUESOLARECLIPTICALARC):
+            return _true_solar_arc_years(horoscope, options, arc_deg, direct)
+        else:
+            return _birthday_solar_arc_years(horoscope, options, arc_deg)
+    else:
+        # 정적 키
+        if options.pdkeys == primdirs.PrimDirs.CUSTOMER:
+            val = (options.pdkeydeg + options.pdkeymin/60.0 + options.pdkeysec/3600.0)  # deg/year
+            return (arc_deg / val) if val != 0.0 else 0.0
+        else:
+            coeff = primdirs.PrimDirs.staticData[options.pdkeys][primdirs.PrimDirs.COEFF]  # years/deg
+            return arc_deg * coeff
+# [END ADD]
 
 _FIXSTAR_CAT_DB = None
 def _adlat(phi_deg, dec_deg):
@@ -119,8 +262,6 @@ def _load_fixstars_cat():
     _FIXSTAR_CAT_DB = db
     return _FIXSTAR_CAT_DB
 
-DEG = math.pi / 180.0
-TROPICAL_YEAR = 365.2421897  # Naibod 변환에 사용
 # --- Python 2/3 unicode helpers ---
 try:
     unicode  # Py2
@@ -728,9 +869,9 @@ def compute_fixedstar_angle_rows(horoscope, options, age_max_years=150.0):
             arcD = _arc_direct(base, target)    # 0..360
             arcC = _arc_converse(base, target)  # 0..360
 
-            # Naibod 정적키: 연수 = arc(도) × 1.01456164
-            yrsD = arcD * NAIBOD_COEFF
-            yrsC = arcC * NAIBOD_COEFF
+            # 이 두 줄을 아래 두 줄로 교체
+            yrsD = _arc_to_years_from_primary_key(horoscope, options, arcD, True)
+            yrsC = _arc_to_years_from_primary_key(horoscope, options, arcC, False)
 
             if 0.0 <= yrsD <= age_max_years:
                 jd_evt = jd0 + yrsD * 365.2421897

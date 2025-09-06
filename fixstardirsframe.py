@@ -3,6 +3,7 @@ import wx, os, math, datetime
 from PIL import Image, ImageDraw, ImageFont
 import common, commonwnd as cw, mtexts, astrology, util
 import fixstardirs
+import primdirs
 
 # ---------- 테이블(프라이머리 디렉션 스타일, CommonWnd 상속) ----------
 class FixStarDirsWnd(cw.CommonWnd):
@@ -141,6 +142,36 @@ class FixStarDirsWnd(cw.CommonWnd):
             by, bm, bd, _ = astrology.swe_revjul(birth_jd, astrology.SE_GREG_CAL)
             return (event_date.toordinal() - datetime.date(by, bm, bd).toordinal()) / 365.2425
         return None
+    def _pd_key_title(self):
+        opt = self.options
+        # 동적 키
+        if getattr(opt, 'pdkeydyn', False):
+            d = getattr(opt, 'pdkeyd', None)
+            if d == primdirs.PrimDirs.TRUESOLAREQUATORIALARC:
+                return u"Dynamic Key: True Solar (Equatorial)"
+            if d == primdirs.PrimDirs.TRUESOLARECLIPTICALARC:
+                return u"Dynamic Key: True Solar (Ecliptical)"
+            if d == primdirs.PrimDirs.BIRTHDAYSOLAREQUATORIALARC:
+                return u"Dynamic Key: Birthday Solar (Equatorial)"
+            if d == primdirs.PrimDirs.BIRTHDAYSOLARECLIPTICALARC:
+                return u"Dynamic Key: Birthday Solar (Ecliptical)"
+            return u"Dynamic Key"
+        # 정적 키
+        s = getattr(opt, 'pdkeys', None)
+        if s == primdirs.PrimDirs.NAIBOD:
+            return u"Static Key: Naibod"
+        if s == primdirs.PrimDirs.CARDAN:
+            return u"Static Key: Cardan"
+        if s == primdirs.PrimDirs.PTOLEMY:
+            return u"Static Key: Ptolemy"
+        if s == primdirs.PrimDirs.CUSTOMER:
+            # 사용자 지정 값 표시(도/분/초)
+            deg = getattr(opt, 'pdkeydeg', 0)
+            minu = getattr(opt, 'pdkeymin', 0)
+            sec = getattr(opt, 'pdkeysec', 0)
+            return u"Static Key: Custom (%d° %d′ %d″)" % (deg, minu, sec)
+        # 안전망(기본)
+        return u"Static Key: Naibod"
 
     # 그리기
     def drawBkg(self):
@@ -152,7 +183,8 @@ class FixStarDirsWnd(cw.CommonWnd):
         # Title 박스
         draw.rectangle(((BOR, BOR), (BOR + self.TITLE_CELL_WIDTH, BOR + self.TITLE_CELL_HEIGHT)),
                        outline=self.tableclr, fill=self.bkgclr)
-        title = u"Mundane, Static Key: Naibod"
+        keytxt = self._pd_key_title()
+        title  = u"Mundane Only, " + keytxt
         tw, th = draw.textsize(title, self.fntText)
         draw.text((BOR + (self.TITLE_CELL_WIDTH - tw) / 2,
                    BOR + (self.LINE_HEIGHT - th) / 2),
