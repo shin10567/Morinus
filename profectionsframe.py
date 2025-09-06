@@ -7,7 +7,7 @@ import wx
 
 class ProfectionsFrame(transitframe.TransitFrame):
 	def __init__(self, parent, title, chrt, radix, options):
-		super().__init__(parent, title, chrt, radix, options)
+		transitframe.TransitFrame.__init__(self, parent, title, chrt, radix, options)
 		self.Bind(wx.EVT_SHOW, self._on_show_bump_width)
 		W = 700   
 		H = max(self.GetSize().height, 620)  
