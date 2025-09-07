@@ -391,7 +391,10 @@ class SecProgPosFrame(wx.Frame):
     - fpathimgs 필드를 둬서 CommonWnd 저장(onSaveAsBitmap) 호환
     """
     def __init__(self, parent, title, prg_chart, options=None, buddy_dlg=None):
-        wx.Frame.__init__(self, parent, -1, title, size=(760, 480))
+        wx.Frame.__init__(
+            self, parent, -1, title, size=(760, 480),
+            style=wx.DEFAULT_FRAME_STYLE | wx.FRAME_FLOAT_ON_PARENT
+        )
 
         # ← 추가: 호출부가 options를 안 줄 때를 대비해 가져오기
         opts = options
