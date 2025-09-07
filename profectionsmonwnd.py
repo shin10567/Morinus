@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import wx
 import os
 import astrology
@@ -50,7 +51,9 @@ class ProfectionsMonWnd(commonwnd.CommonWnd):
 		val = 0
 		if len(self.dates) == 12:
 			val = self.LINE_HEIGHT
-		self.TABLE_HEIGHT = (self.TITLE_HEIGHT+self.SPACE_TITLEY+(self.LINE_NUM*(self.LINE_HEIGHT))+val)
+		# 변경
+		self.TABLE_HEIGHT = (self.TITLE_HEIGHT + self.SPACE_TITLEY + self.LINE_NUM * self.LINE_HEIGHT)
+
 	
 		self.WIDTH = (commonwnd.CommonWnd.BORDER+self.TABLE_WIDTH+commonwnd.CommonWnd.BORDER)
 		self.HEIGHT = (commonwnd.CommonWnd.BORDER+self.TABLE_HEIGHT+commonwnd.CommonWnd.BORDER)
@@ -142,18 +145,9 @@ class ProfectionsMonWnd(commonwnd.CommonWnd):
 			if agecont > 11:
 				agecont = 0
 
-		#draw 13th line (empty) in case of 12steps
-		y = BOR+self.TABLE_HEIGHT
-		if len(self.dates) == 12:
-			draw.line((x, y, x+self.TABLE_WIDTH, y), fill=tableclr)
-			offs = (self.CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH, self.BIG_CELL_WIDTH)
-			draw.line((x, y-self.LINE_HEIGHT, x, y), fill=tableclr)
-			summa = 0
-			for i in range(self.COLUMN_NUM):
-				draw.line((x+summa+offs[i], y-self.LINE_HEIGHT, x+summa+offs[i], y), fill=tableclr)
-				summa += offs[i]
-		else:
-			draw.line((x, y, x+self.TABLE_WIDTH, y), fill=tableclr)
+		# 변경 (항상 바닥선만 한 번 긋기)
+		y = BOR + self.TABLE_HEIGHT
+		draw.line((x, y, x+self.TABLE_WIDTH, y), fill=tableclr)
 
 		wxImg = wx.EmptyImage(img.size[0], img.size[1])
 		wxImg.SetData(img.tobytes())

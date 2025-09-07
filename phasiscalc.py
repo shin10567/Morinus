@@ -467,7 +467,7 @@ HREF = {
 }
 
 # --- Atmospheric extinction (V-band), altitude-only model ---
-KV0_SEA = 0.3000    # sea-level reference (mag per airmass)
+KV0_SEA = 0.30      # sea-level reference (mag per airmass)
 H0_M    = 8500      # scale height in meters
 KV_USED = 0.30
 def kV_from_altitude(H_m, kv0_sea=KV0_SEA, h0_m=H0_M,

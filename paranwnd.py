@@ -601,6 +601,17 @@ class ParanatellontaWnd(cw.CommonWnd):
         self.f_text = ImageFont.truetype(common.common.abc,     self.FONT_SIZE)
         self.f_sym  = ImageFont.truetype(common.common.symbols, self.FONT_SIZE)
 
+        # (선택) Bold TTF가 있으면 사용, 없으면 None
+        self.f_text_bold = None
+        try:
+            import os
+            base = os.path.dirname(common.common.abc)
+            cand = os.path.join(base, 'DejaVuSansCondensed-Bold.ttf')
+            if os.path.isfile(cand):
+                self.f_text_bold = ImageFont.truetype(cand, self.FONT_SIZE)
+        except Exception:
+            self.f_text_bold = None
+
         # 행성/별자리 기호 테이블
         self.signs  = _load_sign_glyphs()
         self.pglyph = _load_planet_glyphs()
@@ -802,35 +813,66 @@ class ParanatellontaWnd(cw.CommonWnd):
             draw.line((BOR + self.TITLE_W, y, BOR + self.TITLE_W, y + self.LINE_H), fill=tbl)
 
             # 셀 컨텐츠
-            # row = (ΔtTxt, ipl, StarName, AnglesTxt)
-            dtxt, ipl, star, angles = row
+            # row = (ΔtTxt, ipl, StarName, AnglesTxt[, same])
+            if len(row) == 5:
+                dtxt, ipl, star, angles, same = row
+            else:
+                dtxt, ipl, star, angles = row
+                same = False
 
             # 1) Δt (텍스트 폰트)
             x = BOR
             w = self.COL_W[0]
-            tw, th = draw.textsize(dtxt, self.f_text)
-            draw.text((x + (w - tw)/2, y + (self.LINE_H - th)/2), dtxt, fill=txt, font=self.f_text)
+            # Bold 폰트 있으면 그걸로, 없으면 겹쳐 그려서 두껍게
+            tw, th = draw.textsize(dtxt, self.f_text_bold or self.f_text)
+            px = x + (w - tw)/2
+            py = y + (self.LINE_H - th)/2
+            if same and not self.f_text_bold:
+                draw.text((px,   py), dtxt, fill=txt, font=self.f_text)
+                draw.text((px+1, py), dtxt, fill=txt, font=self.f_text)  # 가짜 Bold
+            else:
+                draw.text((px, py), dtxt, fill=txt, font=(self.f_text_bold if same else self.f_text))
             x += w
 
-            # 2) Planet (심볼 폰트)
+            # 2) Planet (심볼 폰트) — 동일 앵글이면 두껍게
             glyph = self._glyph_for(ipl)
             w = self.COL_W[1]
             tw, th = draw.textsize(glyph, self.f_sym)
-            draw.text((x + (w - tw)/2, y + (self.LINE_H - th)/2), glyph, fill=self._planet_rgb(ipl), font=self.f_sym)
+            px = x + (w - tw)/2
+            py = y + (self.LINE_H - th)/2
+            pclr = self._planet_rgb(ipl)
+
+            if same:
+                # Morinus 심볼 폰트엔 Bold 파일이 없으므로 겹쳐 그려 '가짜 Bold'
+                draw.text((px,   py), glyph, fill=pclr, font=self.f_sym)
+                draw.text((px+1, py), glyph, fill=pclr, font=self.f_sym)
+            else:
+                draw.text((px, py), glyph, fill=pclr, font=self.f_sym)
 
             x += w
 
             # 3) Star Name (텍스트 폰트)
             w = self.COL_W[2]
-            tw, th = draw.textsize(star, self.f_text)
-            draw.text((x + (w - tw)/2, y + (self.LINE_H - th)/2), star, fill=txt, font=self.f_text)
+            tw, th = draw.textsize(star, self.f_text_bold or self.f_text)
+            px = x + (w - tw)/2
+            py = y + (self.LINE_H - th)/2
+            if same and not self.f_text_bold:
+                draw.text((px,   py), star, fill=txt, font=self.f_text)
+                draw.text((px+1, py), star, fill=txt, font=self.f_text)
+            else:
+                draw.text((px, py), star, fill=txt, font=(self.f_text_bold if same else self.f_text))
             x += w
 
             # 4) Angles (텍스트 폰트)
             w = self.COL_W[3]
-            tw, th = draw.textsize(angles, self.f_text)
-            draw.text((x + (w - tw)/2, y + (self.LINE_H - th)/2), angles, fill=txt, font=self.f_text)
-
+            tw, th = draw.textsize(angles, self.f_text_bold or self.f_text)
+            px = x + (w - tw)/2
+            py = y + (self.LINE_H - th)/2
+            if same and not self.f_text_bold:
+                draw.text((px,   py), angles, fill=txt, font=self.f_text)
+                draw.text((px+1, py), angles, fill=txt, font=self.f_text)
+            else:
+                draw.text((px, py), angles, fill=txt, font=(self.f_text_bold if same else self.f_text))
 
     # --- 내부: 데이터 산출 (기존 로직 재사용 + Planet을 '라벨'→'ipl 코드'로) ---
     def _compute_rows(self):
@@ -857,7 +899,7 @@ class ParanatellontaWnd(cw.CommonWnd):
         elif sr_prev and sr_today and (sr_prev <= jd_ut < sr_today):
             t0, t1 = sr_prev, sr_today
         else:
-            half = 0.6
+            half = 0.5
             t0, t1 = jd_ut - half, jd_ut + half
 
         _pad = ANGLE_TOL_MIN / 1440.0
@@ -889,7 +931,8 @@ class ParanatellontaWnd(cw.CommonWnd):
                     dtxt = _fmt_deltat_minutes(du)
                     angles_txt = u"%s - %s" % (kindP, kindS)
                     star_disp = _star_display_name(sid, utP)
-                    rows.append((dtxt, ipl, star_disp, angles_txt))
+                    same = (kindP == kindS)  # 동일 앵글?
+                    rows.append((dtxt, ipl, star_disp, angles_txt, same))
 
         def _abs_minutes(txt):
             s = txt.replace(u"±", u"").replace(u"″", u"").split(u"′")
