@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import wx
 import os
 import astrology
@@ -174,7 +176,13 @@ class ZodParsWnd(commonwnd.CommonWnd):
 		offs = (self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH)
 		summa = 0
 		for i in range(len(dataord)):
-			if dataord[i] == -1:
+			if dataord[i] == -1:   # 또는: isinstance(dataord[i], (int,float)) and dataord[i] < 0
+				dash = u'—'        # 폰트가 이 글자 없으면 '-'로 바꿔도 됨
+				w, h = draw.textsize(dash, self.fntText)
+				offset = (offs[i] - w) / 2
+				draw.text((x + self.SMALL_CELL_WIDTH + summa + offset,
+						y + (self.LINE_HEIGHT - h) / 2),
+						dash, fill=clr, font=self.fntText)
 				summa += offs[i]
 				continue
 

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import chart
 import math
 import util
@@ -42,13 +44,17 @@ class ZodParsBase:
 				return Points(True, ((lon1, CONTRAPARALLEL), (lon2, PARALLEL), (lon3, CONTRAPARALLEL)))
 		else:
 			if decl == self.obl:
-				lon1 = math.degrees(math.asin(math.sin(math.radians(origdecl))/math.sin(math.radians(self.obl))))
-				lon1 = util.normalize(lon1)
+				x = math.sin(math.radians(origdecl)) / math.sin(math.radians(self.obl))
+				# 부동소수점 경계 안전장치
+				x = max(-1.0, min(1.0, x))
+				lon1 = math.degrees(math.asin(x))
 				lon2 = util.normalize(lon1+180.0)
 				return Points(True, ((lon1, PARALLEL), (lon2, CONTRAPARALLEL)))
 			else:
-				lon1 = math.degrees(math.asin(math.sin(math.radians(origdecl))/math.sin(math.radians(self.obl))))
-				lon1 = util.normalize(lon1)
+				x = math.sin(math.radians(origdecl)) / math.sin(math.radians(self.obl))
+				# 부동소수점 경계 안전장치
+				x = max(-1.0, min(1.0, x))
+				lon1 = math.degrees(math.asin(x))
 				lon2 = util.normalize(lon1+180.0)
 				lon3 = 360.0-lon2
 				lon4 = util.normalize(lon3+180.0)
