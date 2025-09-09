@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import wx
 import chart
 import positionswnd
@@ -46,6 +47,7 @@ class TransitFrame(wx.Frame):
 
 		self.ID_PDDirect = wx.NewId()
 		self.ID_PDConverse = wx.NewId()
+		self.ID_PDBoth = wx.NewId()
 		self.ID_PDToRadix = wx.NewId()
 
 		self.selmenu = wx.Menu()
@@ -60,6 +62,7 @@ class TransitFrame(wx.Frame):
 			self.pdselmenu = wx.Menu()
 			self.pddirectmenu = self.pdselmenu.Append(self.ID_PDDirect, mtexts.txts['Direct'], '')
 			self.pdconversemenu = self.pdselmenu.Append(self.ID_PDConverse, mtexts.txts['Converse'], '')
+			self.pdbothmenu = self.pdselmenu.Append(self.ID_PDBoth, mtexts.txts['Both'], '')
 			self.pdtoradix = self.pdselmenu.Append(self.ID_PDToRadix, mtexts.txts['PDToRadix'], '', wx.ITEM_CHECK)
 			self.pdtoradix.Enable(False)
 			self.pmenu.AppendMenu(self.ID_PrimaryDirections, mtexts.txts['PrimaryDirs'], self.pdselmenu)
@@ -78,6 +81,7 @@ class TransitFrame(wx.Frame):
 		if self.chart.htype == chart.Chart.SOLAR or self.chart.htype == chart.Chart.LUNAR:
 			self.Bind(wx.EVT_MENU, self.onPDDirect, id=self.ID_PDDirect)
 			self.Bind(wx.EVT_MENU, self.onPDConverse, id=self.ID_PDConverse)
+			self.Bind(wx.EVT_MENU, self.onPDBoth, id=self.ID_PDBoth)
 			self.Bind(wx.EVT_MENU, self.onPDToRadix, id=self.ID_PDToRadix)
 		self.Bind(wx.EVT_MENU, self.onSaveAsBitmap, id=self.ID_SaveAsBitmap)
 		self.Bind(wx.EVT_MENU, self.onBlackAndWhite, id=self.ID_BlackAndWhite)
@@ -139,6 +143,8 @@ class TransitFrame(wx.Frame):
 	def onPDConverse(self, event):
 		self.onPD(primdirs.PrimDirs.CONVERSE)
 
+	def onPDBoth(self, event):
+		self.onPD(primdirs.PrimDirs.BOTHDC)
 
 	def onPDToRadix(self, event):
 		#Because on Windows the EVT_MENU_CLOSE event is not sent in case of accelerator-keys

@@ -13,29 +13,83 @@ from phasiswnd import PHASIS_EMPTY  # '—' 기호 그대로 사용
 class CircumWnd(cw.CommonWnd):
 
     def _planet_color(self, pid):
-    # phasiswnd.py 의 색상 결정 로직을 그대로 차용
-    # (useplanetcolors가 True면 개별 색, 아니면 존비 팔레트)
-        if self.bw:
+        # (bw면 흑백 고정)
+        if getattr(self, 'bw', False):
             return (0, 0, 0)
-        clr = (0, 0, 0)
+
+        # pid를 숫자 인덱스로 최대한 안전하게 변환
+        objidx = None
+        # dict/객체 내부에서 꺼내기
+        if isinstance(pid, dict):
+            for k in ('pid','num','id','index','ipl','planet_pid'):
+                if k in pid:
+                    pid = pid[k]; break
+        elif hasattr(pid, '__dict__'):
+            for k in ('pid','num','id','index','ipl'):
+                if hasattr(pid, k):
+                    pid = getattr(pid, k); break
+
+        # 숫자 시도
         try:
             objidx = int(pid)
-        except:
+        except Exception:
+            objidx = None
+
+        # 이름 → astrology 상수
+        if objidx is None and isinstance(pid, (str, bytes)):
+            name_map = {
+                'sun': astrology.SE_SUN, 'moon': astrology.SE_MOON,
+                'mercury': astrology.SE_MERCURY, 'venus': astrology.SE_VENUS,
+                'mars': astrology.SE_MARS, 'jupiter': astrology.SE_JUPITER,
+                'saturn': astrology.SE_SATURN, 'uranus': astrology.SE_URANUS,
+                'neptune': astrology.SE_NEPTUNE, 'pluto': astrology.SE_PLUTO,
+            }
+            key = pid.strip().lower()
+            objidx = name_map.get(key, None)
+
+        # 최종 폴백
+        if objidx is None:
             objidx = 0
-        if getattr(self.options, 'useplanetcolors', False):
-            idx = min(max(objidx,0), len(self.options.clrindividual)-1)
-            clr = self.options.clrindividual[idx]
+
+        # 색 선택: 개인색 or 존비 팔레트
+        if getattr(self.options, 'useplanetcolors', False) and hasattr(self.options, 'clrindividual'):
+            idx = max(0, min(objidx, len(self.options.clrindividual)-1))
+            clr = tuple(self.options.clrindividual[idx])
         else:
             try:
-                dign = self.chart.dignity(objidx)
-            except:
+                dign = int(self.chart.dignity(objidx))
+            except Exception:
                 dign = 0
             pal = [self.options.clrdomicil, self.options.clrexal,
                 self.options.clrperegrin, self.options.clrcasus,
                 self.options.clrexil]
             i = dign if 0 <= dign < len(pal) else 0
-            clr = pal[i]
+            clr = tuple(pal[i])
+
         return clr
+
+    def _aspect_color(self, glyph_or_val):
+        """Aspect 글리프/값에 맞는 사용자 색을 돌려준다."""
+        if getattr(self, 'bw', False):
+            return self.clTxt
+        # 1) 글리프로 매칭 (common.common.Aspects)
+        try:
+            aspects_g = getattr(common.common, 'Aspects', []) or []
+            if isinstance(glyph_or_val, str) and glyph_or_val in aspects_g:
+                idx = aspects_g.index(glyph_or_val)
+                if 0 <= idx < len(self.options.clraspect):
+                    return self.options.clraspect[idx]
+        except Exception:
+            pass
+        # 2) 숫자(각도값)으로 매칭 (chart.Chart.Aspects)
+        try:
+            a = float(glyph_or_val)
+            for idx, deg in enumerate(chart.Chart.Aspects):
+                if abs(a - deg) < 1e-6 and 0 <= idx < len(self.options.clraspect):
+                    return self.options.clraspect[idx]
+        except Exception:
+            pass
+        return self.clTxt
 
     """
     헤더: Age | Asc | Term Lord | Participator | Date
@@ -342,9 +396,9 @@ class CircumWnd(cw.CommonWnd):
                 gap = int(self.FONT_SIZE/3)
                 tot = tw1 + gap + tw2
                 base = x + (w - tot)/2
-                # 두 기호를 '따로' 심볼 폰트로 렌더 (색은 검정 고정)
-                draw.text((base,                 y + (self.LINE_H-th1)/2), g1, fill=(0,0,0), font=self.f_sym)
-                draw.text((base + tw1 + gap,     y + (self.LINE_H-th2)/2), g2, fill=(0,0,0), font=self.f_sym)
+                # 사인 글리프는 텍스트색, 행성 글리프는 사용자 행성색
+                draw.text((base,                 y + (self.LINE_H-th1)/2), g1, fill=self.clTxt,               font=self.f_sym)
+                draw.text((base + tw1 + gap,     y + (self.LINE_H-th2)/2), g2, fill=self._planet_color(pid),  font=self.f_sym)
             else:
                 # — (phasiswnd의 빈칸 기호)
                 w = self.W_TRM
@@ -364,10 +418,10 @@ class CircumWnd(cw.CommonWnd):
                 tot = tw1 + gap + tw2
                 base = x + (w - tot)/2
                 if g1:
-                    draw.text((base, y + (self.LINE_H-th1)/2), g1, fill=(0,0,0), font=self.f_sym)
+                    draw.text((base, y + (self.LINE_H-th1)/2), g1, fill=self._aspect_color(g1), font=self.f_sym)
                     base += tw1 + gap
                 if g2:
-                    draw.text((base, y + (self.LINE_H-th2)/2), g2, fill=(0,0,0), font=self.f_sym)
+                    draw.text((base, y + (self.LINE_H-th2)/2), g2, fill=self._planet_color(pid), font=self.f_sym)
             else:
                 w = self.W_PAR
                 tw, th = draw.textsize(PHASIS_EMPTY, self.f_txt)

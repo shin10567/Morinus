@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import wx
 import os
 import astrology
@@ -37,7 +38,7 @@ class PositionsWnd2(wx.Window):
 		BOR = PositionsWnd2.BORDER
 
 		self.FONT_SIZE = int(21*self.options.tablesize) #Change fontsize to change the size of the table!
-		self.COLUMN_NUM = column_num
+		self.COLUMN_NUM = column_num + 1  # RA와 Decl 사이 (Dodecatemorion) 1칸 추가
 		self.SPACE = self.FONT_SIZE/2
 		self.LINE_HEIGHT = (self.SPACE+self.FONT_SIZE+self.SPACE)
 
@@ -132,8 +133,17 @@ class PositionsWnd2(wx.Window):
 
 
 	def OnPaint(self, event):
+		if not hasattr(self, 'buffer'):
+			self.drawBkg()
 		dc = wx.BufferedPaintDC(self, self.buffer, wx.BUFFER_VIRTUAL_AREA)
 
+	def _dodecatemoria_lon(self, lon_deg):
+		# 도데카테모리온: (사인 내 위치 * 12)을 같은 사인 시작점에 더하고 360 정규화
+		sign_size = chart.Chart.SIGN_DEG  # 보통 30
+		base = int(lon_deg / sign_size) * sign_size
+		pos_in_sign = lon_deg % sign_size
+		dodec = util.normalize(base + pos_in_sign * 12.0)
+		return dodec
 
 	def drawBkg(self):
 		if self.bw:
@@ -169,6 +179,13 @@ class PositionsWnd2(wx.Window):
 				w,h = draw.textsize(txt[self.speculum][i], self.fntText)
 				draw.text((BOR+self.SMALL_CELL_WIDTH+self.CELL_WIDTH*j+(self.CELL_WIDTH-w)/2, BOR+(self.LINE_HEIGHT-h)/2), txt[self.speculum][i], fill=txtclr, font=self.fntText)
 				j += 1
+				if i == planets.Planet.RA:
+					label = u'Dodecatemorion'
+					wC, hC = draw.textsize(label, self.fntText)
+					draw.text((BOR + self.SMALL_CELL_WIDTH + self.CELL_WIDTH*j + (self.CELL_WIDTH - wC)/2,
+							BOR + (self.LINE_HEIGHT - hC)/2),
+							label, fill=txtclr, font=self.fntText)
+					j += 1
 
 		x = BOR
 		y = BOR+self.TITLE_HEIGHT+self.SPACE_TITLEY
@@ -243,6 +260,7 @@ class PositionsWnd2(wx.Window):
 
 		#vertical lines
 		offs = (0, self.SMALL_CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH)
+		draw.line((x + self.TABLE_WIDTH, y, x + self.TABLE_WIDTH, y + self.LINE_HEIGHT), fill=clr)
 
 		SPEC = 2
 		j = 0
@@ -306,6 +324,37 @@ class PositionsWnd2(wx.Window):
 				w,h = draw.textsize(txt, self.fntText)				
 				offset = (offs[i]-w)/2
 				draw.text((x+self.SMALL_CELL_WIDTH+summa+offset, y+(self.LINE_HEIGHT-h)/2), txt, fill=txtclr, font=self.fntText)
+				# ── RA 텍스트를 그린 직후에 추가 ──
+				# 1) C 칸의 왼쪽 경계선
+				draw.line((x + self.SMALL_CELL_WIDTH + summa + offs[i], y,
+						x + self.SMALL_CELL_WIDTH + summa + offs[i], y + self.LINE_HEIGHT), fill=clr)
+
+				# 2) 도데카테모리온 계산(경도 기준) 및 출력
+				lon_for_c = data[planets.Planet.LONG]          # 이 행(Asc/MC/하우스)의 경도
+				dodec_lon  = self._dodecatemoria_lon(lon_for_c)
+
+				# 1) 사인 인덱스와 사인 안의 각도 분리
+				signC = int(dodec_lon / chart.Chart.SIGN_DEG)
+				pos_in_sign = dodec_lon - signC * chart.Chart.SIGN_DEG
+
+				# 2) 분·초는 pos_in_sign에서 다시 계산  (작은 eps로 59.999.. 보정)
+				dpos, mpos, spos = util.decToDeg(pos_in_sign + 1e-8)
+
+				# 3) 출력
+				txtC = (str(dpos)).rjust(2)+self.deg_symbol+(str(mpos)).zfill(2)+"'"+(str(spos)).zfill(2)+'"'
+
+				wC, hC = draw.textsize(txtC, self.fntText)
+				wsp, _  = draw.textsize(' ', self.fntText)
+				wsg, hsg = draw.textsize(self.signs[signC], self.fntMorinus)
+				offC = (self.CELL_WIDTH - (wC + wsp + wsg)) / 2
+
+				draw.text((x + self.SMALL_CELL_WIDTH + summa + offs[i] + offC,
+						y + (self.LINE_HEIGHT - hC)/2), txtC, fill=txtclr, font=self.fntText)
+				draw.text((x + self.SMALL_CELL_WIDTH + summa + offs[i] + offC + wC + wsp,
+						y + (self.LINE_HEIGHT - hsg)/2), self.signs[signC], fill=txtclr, font=self.fntMorinus)
+
+				# 3) 이후 칼럼들을 한 칸 오른쪽으로
+				summa += self.CELL_WIDTH
 
 			j += 1
 			summa += offs[i]
@@ -317,6 +366,7 @@ class PositionsWnd2(wx.Window):
 
 		#vertical lines
 		offs = (0, self.SMALL_CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH)
+		draw.line((x + self.TABLE_WIDTH, y, x + self.TABLE_WIDTH, y + self.LINE_HEIGHT), fill=clr)
 
 		SPEC = 2
 		j = 0
@@ -398,6 +448,39 @@ class PositionsWnd2(wx.Window):
 				w,h = draw.textsize(txt, self.fntText)				
 				offset = (offs[i]-w)/2
 				draw.text((x+self.SMALL_CELL_WIDTH+summa+offset, y+(self.LINE_HEIGHT-h)/2), txt, fill=clrpl, font=self.fntText)
+				# ── 여기서 'C'(Dodecatemorion) 칸 삽입 ──
+				draw.line(
+					(x + self.SMALL_CELL_WIDTH + summa + offs[i], y,
+					x + self.SMALL_CELL_WIDTH + summa + offs[i], y + self.LINE_HEIGHT),
+					fill=clr
+				)
+
+				# 2) 경도에서 Dodecatemorion 계산해 ‘C’ 칸에 출력
+				dodec_lon = self._dodecatemoria_lon(ayanlon)  # 또는 lon_for_c
+				# 1) 사인 인덱스와 사인 안의 각도 분리
+				signC = int(dodec_lon / chart.Chart.SIGN_DEG)
+				pos_in_sign = dodec_lon - signC * chart.Chart.SIGN_DEG
+
+				# 2) 분·초는 pos_in_sign에서 다시 계산  (작은 eps로 59.999.. 보정)
+				dpos, mpos, spos = util.decToDeg(pos_in_sign + 1e-8)
+
+				# 3) 출력
+				txtC = (str(dpos)).rjust(2)+self.deg_symbol+(str(mpos)).zfill(2)+"'"+(str(spos)).zfill(2)+'"'
+
+				wC, hC = draw.textsize(txtC, self.fntText)
+				wsp, _  = draw.textsize(' ', self.fntText)
+				wsg, hsg = draw.textsize(self.signs[signC], self.fntMorinus)
+				offC = (self.CELL_WIDTH - (wC + wsp + wsg)) / 2
+
+				# 값 + 사인 심볼
+				draw.text((x + self.SMALL_CELL_WIDTH + summa + offs[i] + offC,
+						y + (self.LINE_HEIGHT - hC)/2), txtC, fill=clrpl, font=self.fntText)
+				draw.text((x + self.SMALL_CELL_WIDTH + summa + offs[i] + offC + wC + wsp,
+						y + (self.LINE_HEIGHT - hsg)/2), self.signs[signC], fill=clrpl, font=self.fntMorinus)
+
+				# 3) 이후 칼럼들을 한 칸 오른쪽으로
+				summa += self.CELL_WIDTH
+
 			elif i == planets.Planet.SA or i == planets.Planet.MD or i == planets.Planet.HD or i == planets.Planet.TH or i == planets.Planet.HOD or i == planets.Planet.AODO:
 				sign = ''
 				if i == planets.Planet.SA or i == planets.Planet.TH or i == planets.Planet.HOD:
@@ -431,7 +514,8 @@ class PositionsWnd2(wx.Window):
 
 		#vertical lines
 		offs = (0, self.SMALL_CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH, self.CELL_WIDTH)
-# ########################################
+		draw.line((x + self.TABLE_WIDTH, y, x + self.TABLE_WIDTH, y + self.LINE_HEIGHT), fill=clr)
+
 # Roberto change - V 7.1.0
 # ########################################
 
@@ -531,6 +615,36 @@ class PositionsWnd2(wx.Window):
 				w,h = draw.textsize(txt, self.fntText)				
 				offset = (offs[i]-w)/2
 				draw.text((x+self.SMALL_CELL_WIDTH+summa+offset, y+(self.LINE_HEIGHT-h)/2), txt, fill=clrpl, font=self.fntText)
+				# ── 여기서 'C'(Dodecatemorion) 칸 삽입 ──
+				# 1) RA 오른쪽에 세로줄 하나 더 (C 칸의 왼쪽 경계)
+				draw.line((x + self.SMALL_CELL_WIDTH + summa + offs[i], y,
+						x + self.SMALL_CELL_WIDTH + summa + offs[i], y + self.LINE_HEIGHT), fill=clr)
+
+				# 2) 도데카테모리온 값 계산 (표시용 경도는 ayanlon 기반)
+				dodec_lon = self._dodecatemoria_lon(ayanlon)  # 또는 lon_for_c
+				# 1) 사인 인덱스와 사인 안의 각도 분리
+				signC = int(dodec_lon / chart.Chart.SIGN_DEG)
+				pos_in_sign = dodec_lon - signC * chart.Chart.SIGN_DEG
+
+				# 2) 분·초는 pos_in_sign에서 다시 계산  (작은 eps로 59.999.. 보정)
+				dpos, mpos, spos = util.decToDeg(pos_in_sign + 1e-8)
+
+				# 3) 출력
+				txtC = (str(dpos)).rjust(2)+self.deg_symbol+(str(mpos)).zfill(2)+"'"+(str(spos)).zfill(2)+'"'
+
+				wC, hC = draw.textsize(txtC, self.fntText)
+				offC = (self.CELL_WIDTH - wC)/2
+
+				# 3) C 칸 텍스트 (사인 심볼 포함)
+				draw.text((x + self.SMALL_CELL_WIDTH + summa + offs[i] + offC, y+(self.LINE_HEIGHT-hC)/2), txtC, fill=clrpl, font=self.fntText)
+				wsp, hsp = draw.textsize(' ', self.fntText)
+				wsg, hsg = draw.textsize(self.signs[signC], self.fntMorinus)
+				# 사인 심볼은 수치 뒤 공백 하나 두고 배치하고 싶으면 아래 두 줄을 대신 써라:
+				# draw.text((x + self.SMALL_CELL_WIDTH + summa + offs[i] + offC + wC + wsp, y+(self.LINE_HEIGHT-hsg)/2), self.signs[signC], fill=clrpl, font=self.fntMorinus)
+
+				# 4) 이후 칼럼들이 한 칸 오른쪽으로 밀리게 누적폭(summa)을 한 셀 추가
+				summa += self.CELL_WIDTH
+
 			elif i == planets.Planet.RMD or i == planets.Planet.RHD:
 				sign = ''
 				if i == planets.Planet.RMD:

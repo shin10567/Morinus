@@ -574,6 +574,7 @@ class ParanatellontaWnd(cw.CommonWnd):
         self.horoscope = horoscope
         self.options = options
         self.mainfr = mainfr
+        self.bw = bool(getattr(self.options, 'bw', False))
 
         import common
 
@@ -649,31 +650,41 @@ class ParanatellontaWnd(cw.CommonWnd):
         self.rows = self._compute_rows()
         self.refreshBkg()
     def _planet_rgb(self, ipl):
-        """사용자 팔레트에서 행성별 색을 얻는다(없으면 텍스트 색)."""
+        """사용자 색상(Colors → Use individual colors) 우선, 없으면 폴백."""
         if getattr(self, 'bw', False):
-            return self.clTxt  # 흑백 모드면 그대로
-        try:
-            import common
-        except Exception:
-            common = None
+            return self.clTxt
 
-        # 보편적인 팔레트 후보: options.clrplanets 또는 common.common.clrplanets
-        palette = getattr(self.options, 'clrplanets', None)
-        if palette is None and common is not None:
-            palette = getattr(common.common, 'clrplanets', None)
-
-        # swe 상수 → 0..9 인덱스 매핑 (Sun..Pluto)
+        # Sun..Pluto 인덱스
         mp = {
             swe.SUN:0, swe.MOON:1, swe.MERCURY:2, swe.VENUS:3, swe.MARS:4,
             swe.JUPITER:5, swe.SATURN:6, swe.URANUS:7, swe.NEPTUNE:8, swe.PLUTO:9
         }
-        if palette and isinstance(palette, (list, tuple)):
+        idx = mp.get(ipl, 0)
+
+        # 1) Morinus 표준: 개별행성색
+        if getattr(self.options, 'useplanetcolors', False) and hasattr(self.options, 'clrindividual'):
+            pal = self.options.clrindividual
             try:
-                c = palette[mp.get(ipl, 0)]
-                return tuple(c)
+                return tuple(pal[idx])
             except Exception:
                 pass
-        return self.clTxt  # 팔레트가 없으면 텍스트 색으로 폴백
+
+        # 2) (있다면) 예전 팔레트 호환
+        pal = getattr(self.options, 'clrplanets', None)
+        if pal is None:
+            try:
+                import common
+                pal = getattr(common.common, 'clrplanets', None)
+            except Exception:
+                pal = None
+        if isinstance(pal, (list, tuple)):
+            try:
+                return tuple(pal[idx])
+            except Exception:
+                pass
+
+        # 3) 최후: 텍스트색
+        return self.clTxt
 
     # --- CommonWnd 필수 구현 ---
     def getExt(self):
@@ -868,11 +879,12 @@ class ParanatellontaWnd(cw.CommonWnd):
             tw, th = draw.textsize(angles, self.f_text_bold or self.f_text)
             px = x + (w - tw)/2
             py = y + (self.LINE_H - th)/2
+            ang_clr = txt
             if same and not self.f_text_bold:
-                draw.text((px,   py), angles, fill=txt, font=self.f_text)
-                draw.text((px+1, py), angles, fill=txt, font=self.f_text)
+                draw.text((px,   py), angles, fill=ang_clr, font=self.f_text)
+                draw.text((px+1, py), angles, fill=ang_clr, font=self.f_text)
             else:
-                draw.text((px, py), angles, fill=txt, font=(self.f_text_bold if same else self.f_text))
+                draw.text((px, py), angles, fill=ang_clr, font=(self.f_text_bold if same else self.f_text))
 
     # --- 내부: 데이터 산출 (기존 로직 재사용 + Planet을 '라벨'→'ipl 코드'로) ---
     def _compute_rows(self):

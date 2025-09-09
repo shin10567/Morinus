@@ -370,7 +370,6 @@ class PositionsWnd(wx.ScrolledWindow):
 
 			j += 1
 			summa += offs[i]
-
 		#draw symbols
 		clrpl = (0,0,0)
 		if not self.bw:
@@ -379,11 +378,16 @@ class PositionsWnd(wx.ScrolledWindow):
 			else:
 				dign = self.chart.dignity(idxpl)
 				clrpl = self.clrs[dign]
-		try:
-			if txt == self.LOF_CHAR:
-				clrpl = (0, 0, 0)
-		except:
-			pass
+
+		# LoF(포르투나): 사용자 개인 색 반영
+		if txt == self.LOF_CHAR:
+			if self.bw:
+				clrpl = (0,0,0)
+			elif self.options.useplanetcolors:
+				clrpl = self.options.clrindividual[astrology.SE_PLUTO+2]
+			else:
+				clrpl = self.options.clrtexts
+
 		fnt = self.fntMorinus
 		w,h = draw.textsize(txt, fnt)
 		offset = (self.SMALL_CELL_WIDTH-w)/2
@@ -496,11 +500,16 @@ class PositionsWnd(wx.ScrolledWindow):
 			else:
 				dign = self.chart.dignity(idxpl)
 				clrpl = self.clrs[dign]
-		try:
-			if txt == self.LOF_CHAR:
-				clrpl = (0, 0, 0)
-		except:
-			pass
+
+		# LoF(포르투나): 사용자 개인 색 반영
+		if txt == self.LOF_CHAR:
+			if self.bw:
+				clrpl = (0,0,0)
+			elif self.options.useplanetcolors:
+				clrpl = self.options.clrindividual[astrology.SE_PLUTO+2]
+			else:
+				clrpl = self.options.clrtexts
+
 		fnt = self.fntMorinus
 		w,h = draw.textsize(txt, fnt)
 		offset = (self.SMALL_CELL_WIDTH-w)/2

@@ -334,7 +334,29 @@ class SecProgPosWnd(commonwnd.CommonWnd):
 
             # Body (행성/노드 기호 = 심볼 폰트)
             tw, th = draw.textsize(body, self.f_sym)
-            draw.text((xx + (self.COL_W[0]-tw)/2, y + (self.LINE_HEIGHT-th)/2), body, fill=txt, font=self.f_sym)
+            pclr = txt
+            if not self.bw:
+                idx = None
+                try:
+                    idx = self.pglyphs.index(body)   # Sun..Pluto/Node 인덱스
+                except Exception:
+                    idx = None
+                if idx is not None:
+                    if getattr(self.options, 'useplanetcolors', False) and hasattr(self.options, 'clrindividual'):
+                        try:
+                            pclr = self.options.clrindividual[idx]
+                        except Exception:
+                            pclr = txt
+                    else:
+                        try:
+                            dign = int(self.chart.dignity(idx))
+                        except Exception:
+                            dign = 0
+                        pal = [self.options.clrdomicil, self.options.clrexal,
+                            self.options.clrperegrin, self.options.clrcasus, self.options.clrexil]
+                        i = dign if 0 <= dign < len(pal) else 0
+                        pclr = pal[i]
+            draw.text((xx + (self.COL_W[0]-tw)/2, y + (self.LINE_HEIGHT-th)/2), body, fill=pclr, font=self.f_sym)
 
             xx += self.COL_W[0]
 
