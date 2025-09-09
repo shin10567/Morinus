@@ -1530,7 +1530,12 @@ class PrimDirs:
 
 			lim = PrimDirs.REVOLUTIO
 
-			if (arc < lim or arc > -lim) and (self.direction == PrimDirs.DIRECT and direct) or (self.direction == PrimDirs.CONVERSE and not direct):
+			if (arc < lim or arc > -lim) and (
+				self.direction == PrimDirs.BOTHDC
+				or (self.direction == PrimDirs.DIRECT and direct)
+				or (self.direction == PrimDirs.CONVERSE and not direct)
+			):
+
 				time, age = self.calcTimeRev(arc)
 
 				pd = PrimDir()
@@ -1551,7 +1556,12 @@ class PrimDirs:
 			arc = 360.0-arc 
 			direct = not direct
 
-		if (arc >= lim or arc <= -lim) or (self.direction == PrimDirs.DIRECT and not direct) or (self.direction == PrimDirs.CONVERSE and direct):
+		if (arc >= lim or arc <= -lim) or (
+			self.direction != PrimDirs.BOTHDC and (
+				(self.direction == PrimDirs.DIRECT and not direct)
+				or (self.direction == PrimDirs.CONVERSE and direct)
+			)
+		):
 			return
 
 		if self.chart.htype == chart.Chart.RADIX:
