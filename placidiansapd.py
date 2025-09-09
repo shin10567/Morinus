@@ -13,7 +13,7 @@ import placspec
 import secmotion
 import customerpd
 import util
-
+import munfortune  # ← 추가
 
 class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 	'Implements Placidian(Semiarc) Primary Directions'
@@ -2592,12 +2592,13 @@ class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 
 	def toMundaneLoF(self, idprom, idprom2, raprom, adprom, calcsecmotion=True):
 
-		# LoF 공식 변경 반영: 먼저 mundane fortune을 최신 옵션으로 동기화
-		try:
-			opts = getattr(self.chart, 'options', self.options)
-			self.chart.munfortune = fortune.MundaneFortune(self.chart, opts)
-		except Exception:
-			pass
+		# LoF 공식 변경 반영: MLoF를 확실히 최신화
+		self.chart.munfortune = munfortune.MundaneFortune(
+			self.chart.houses.ascmc2,
+			self.chart.planets,
+			self.chart.obl[0],
+			self.chart.place.lat
+		)
 
 		sig = self.chart.fortune.fortune  # [LON, LAT, RA, DECL]
 		mspec_local = placspec.PlacidianSpeculum(
@@ -2984,14 +2985,21 @@ class PlacidianSAPD(placidiancommonpd.PlacidianCommonPD):
 
 		if not hasattr(self, '_mlof_spec') or self._mlof_spec is None:
 			sig = self.chart.fortune.fortune
-			mspec_local = placspec.PlacidianSpeculum(
-				self.chart.place.lat,
-				self.chart.houses.ascmc2,
-				sig[fortune.Fortune.LON],
-				sig[fortune.Fortune.LAT],
-				sig[fortune.Fortune.RA],
-				sig[fortune.Fortune.DECL]
-			)
+			key = (sig[fortune.Fortune.LON], sig[fortune.Fortune.RA], sig[fortune.Fortune.DECL])
+
+			if getattr(self, '_mlof_spec_key', None) != key:
+				self._mlof_spec = placspec.PlacidianSpeculum(
+					self.chart.place.lat,
+					self.chart.houses.ascmc2,
+					sig[fortune.Fortune.LON],
+					sig[fortune.Fortune.LAT],
+					sig[fortune.Fortune.RA],
+					sig[fortune.Fortune.DECL]
+				)
+				self._mlof_spec_key = key
+
+			mspec_local = self._mlof_spec
+
 			self._mlof_spec  = mspec_local.speculum
 			self._mlof_above = mspec_local.abovehorizon
 			self._mlof_east  = mspec_local.eastern

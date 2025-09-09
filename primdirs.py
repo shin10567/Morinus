@@ -6,6 +6,7 @@ import astrology
 import houses
 import chart
 import fortune
+import munfortune
 import syzygy
 import planets
 import fixstars
@@ -189,7 +190,12 @@ class PrimDirs:
 
 			# Fortune(LoF)을 전역 옵션으로 갱신한 '바로 다음'에 munfortune도 갱신
 			try:
-				self.chart.munfortune = fortune.MundaneFortune(self.chart, opts)
+				self.chart.munfortune = munfortune.MundaneFortune(
+					self.chart.houses.ascmc2,   # ascmc2
+					self.chart.planets,         # pls
+					self.chart.obl[0],          # obl
+					self.chart.place.lat        # placelat
+				)
 			except Exception:
 				pass
 
@@ -261,7 +267,12 @@ class PrimDirs:
 
 				# Fortune(LoF)을 전역 옵션으로 갱신한 '바로 다음'에 munfortune도 갱신
 				try:
-					self.chart.munfortune = fortune.MundaneFortune(self.chart, opts)
+					self.chart.munfortune = munfortune.MundaneFortune(
+						self.chart.houses.ascmc2,
+						self.chart.planets,
+						self.chart.obl[0],
+						self.chart.place.lat
+					)
 				except Exception:
 					pass
 
