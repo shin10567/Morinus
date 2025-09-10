@@ -127,10 +127,10 @@ import os, sys, wx
 import sys  # 위쪽 import들 근처에 이미 있다면 생략
 
 def _res_path(name):
-    # PyInstaller(onefile/onedir) 모두에서 아이콘을 안정적으로 찾기 위한 경로 헬퍼
-    if hasattr(sys, "_MEIPASS"):  # PyInstaller 실행 시 임시 폴더
-        return os.path.join(sys._MEIPASS, name)
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+	# PyInstaller(onefile/onedir) 모두에서 아이콘을 안정적으로 찾기 위한 경로 헬퍼
+	if hasattr(sys, "_MEIPASS"):  # PyInstaller 실행 시 임시 폴더
+		return os.path.join(sys._MEIPASS, name)
+	return os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
 
 
 (PDReadyEvent, EVT_PDREADY) = wx.lib.newevent.NewEvent()
@@ -280,11 +280,11 @@ class MFrame(wx.Frame):
 							mtexts.menutxts['TMAngleAtBirthDoc'])
 
 		self.mtable.Append(self.ID_PrimaryDirs, mtexts.menutxts['TMPrimaryDirs'], mtexts.menutxts['TMPrimaryDirsDoc'])
-		self.mtable.Append(self.ID_ZodiacalReleasing, u"Zodiacal releasing\tCtrl+1", u"Time-lord releasing (ZR)")
-		self.mtable.Append(self.ID_Phasis, u"Helical risings/settings\tCtrl+2", u"Heliacal visibility")
+		self.mtable.Append(self.ID_ZodiacalReleasing, u"Zodiacal Releasing\tCtrl+1", u"Time-lord releasing (ZR)")
+		self.mtable.Append(self.ID_Phasis, u"Helical Risings/Settings\tCtrl+2", u"Heliacal visibility")
 		self.mtable.Append(self.ID_Paranatellonta, u"Paranatellonta\tCtrl+3", u"Planets and fixed stars on the 4 angles")
 		self.mtable.Append(self.ID_Circumambulation, u"Circumambulations\tCtrl+4", u"Distributions through the bounds (true ascension)")
-		self.mtable.Append(self.ID_FixStarAngleDirs, u"Angular directions of fixed stars\tCtrl+5", u"Mundane fixed stars hitting ASC/MC/DSC/IC (Naibod)")
+		self.mtable.Append(self.ID_FixStarAngleDirs, u"Angular Directions of Fixed Stars\tCtrl+5", u"Mundane fixed stars hitting ASC/MC/DSC/IC")
 
 		#Charts-menu
 		self.mcharts.Append(self.ID_Transits, mtexts.menutxts['PMTransits'], mtexts.menutxts['PMTransitsDoc'])
@@ -293,9 +293,9 @@ class MFrame(wx.Frame):
 
 		# --- Secondary progressions submenu (Charts) ---
 		self.csecprog = wx.Menu()
-		self.csecprog.Append(self.ID_SecProgChart,     u"Chart\tShift+Ctrl+F5", u"Open secondary progressions chart")
-		self.csecprog.Append(self.ID_SecProgPositions, u"Positions for date\tShift+Ctrl+F6", u"Show progressed positions by a real date (1 day = 1 year)")
-		self.mcharts.AppendMenu(self.ID_SecProgMenu, u"Secondary progressions", self.csecprog)
+		self.csecprog.Append(self.ID_SecProgChart,     u"Chart\tShift+Ctrl+F4", u"Open secondary progressions chart")
+		self.csecprog.Append(self.ID_SecProgPositions, u"Positions for Date\tShift+Ctrl+F5", u"Show progressed positions by a real date (1 day = 1 year)")
+		self.mcharts.AppendMenu(self.ID_SecProgMenu, u"Secondary Progressions", self.csecprog)
 
 		self.mcharts.Append(self.ID_SquareChart, mtexts.menutxts['PMSquareChart'], mtexts.menutxts['PMSquareChartDoc'])
 		self.mcharts.Append(self.ID_ProfectionsChart, mtexts.menutxts['PMProfections'], mtexts.menutxts['PMProfectionsDoc'])
@@ -515,8 +515,8 @@ class MFrame(wx.Frame):
 			(wx.ACCEL_CTRL, ord('3'),  self.ID_Paranatellonta),
 			(wx.ACCEL_CTRL, ord('4'),  self.ID_Circumambulation),
 			(wx.ACCEL_CTRL, ord('5'),  self.ID_FixStarAngleDirs),
-	(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_F5, self.ID_SecProgChart),
-	(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_F6, self.ID_SecProgPositions),
+	(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_F4, self.ID_SecProgChart),
+	(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_F5, self.ID_SecProgPositions),
 	(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_F9, self.ID_Elections),
 ]))
 		
@@ -1717,8 +1717,9 @@ class MFrame(wx.Frame):
 			return
 
 		if self.revdlg == None:
-			self.revdlg = revolutionsdlg.RevolutionsDlg(None)
-			self.revdlg.initialize(self.horoscope)	
+			# 메인 프레임(self)을 parent로
+			self.revdlg = revolutionsdlg.RevolutionsDlg(self)
+			self.revdlg.initialize(self.horoscope)
 		self.revdlg.CenterOnParent()
 
 		val = self.revdlg.ShowModal()
@@ -1760,9 +1761,11 @@ class MFrame(wx.Frame):
 						revtype = chart.Chart.LUNAR
 
 					revolution = chart.Chart(self.horoscope.name, self.horoscope.male, time, place, revtype, '', self.options, False)
-
+					dlg.Destroy()
 					rw = transitframe.TransitFrame(self, self.title.replace(mtexts.typeList[self.horoscope.htype], mtexts.typeList[revtype]+' ('+str(time.year)+'.'+common.common.months[time.month-1]+'.'+str(time.day)+' '+str(time.hour)+':'+str(time.minute).zfill(2)+':'+str(time.second).zfill(2)+'('+mtexts.txts['GMT']+'))'), revolution, self.horoscope, self.options)
 					rw.Show(True)
+					wx.CallAfter(rw.Raise)
+					wx.CallAfter(rw.SetFocus)
 					# 현재 프레임/컨텍스트 저장
 					self._rev_frame = rw
 					self._rev_ctx   = {'place': place, 'plus': plus, 'revtype': revtype}
@@ -1827,6 +1830,8 @@ class MFrame(wx.Frame):
 							try:
 								self._rev_frame.change_chart(chart2)
 								self._rev_frame.SetTitle(newtitle2)
+								wx.CallAfter(self._rev_frame.Raise)
+								wx.CallAfter(self._rev_frame.SetFocus)
 							except Exception:
 								try:
 									self._rev_frame.Destroy()
@@ -1834,6 +1839,8 @@ class MFrame(wx.Frame):
 									pass
 								self._rev_frame = transitframe.TransitFrame(self, newtitle2, chart2, self.horoscope, self.options)
 								self._rev_frame.Show(True)
+								wx.CallAfter(self._rev_frame.Raise)
+								wx.CallAfter(self._rev_frame.SetFocus)
 								self._rev_frame.Bind(wx.EVT_CLOSE, _on_close)
 
 							self._rev_year = int(new_year)
@@ -1851,7 +1858,100 @@ class MFrame(wx.Frame):
 						except Exception:
 							self._rev_stepper.CenterOnScreen()
 						self._rev_stepper.Raise()
-					# (else: 솔라가 아니면 스텝퍼 없음)
+					# ★ 루나 리턴에도 월 스텝퍼를 붙인다
+					# SOLAR 분기 밑에 이어서:
+					elif self.revdlg.typecb.GetCurrentSelection() == revolutions.Revolutions.LUNAR:
+
+						# 1) 다이얼로그에서 고른 시작 날짜를 기억(월만 바꿔가며 재계산)
+						self._lr_year  = int(self.revdlg.year.GetValue())
+						self._lr_month = int(self.revdlg.month.GetValue())
+						self._lr_day   = int(self.revdlg.day.GetValue())
+
+						# 리턴 프레임이 닫히면 스텝퍼도 함께 닫기
+						def _on_close(evt):
+							try:
+								if hasattr(self, "_rev_stepper") and self._rev_stepper:
+									self._rev_stepper.Destroy()
+									self._rev_stepper = None
+							except Exception:
+								pass
+							evt.Skip()
+						self._rev_frame.Bind(wx.EVT_CLOSE, _on_close)
+
+						# 2) (yy, mm)로 루나 리턴 재계산 후 프레임 갱신
+						def _set_lr_ym_and_refresh(yy, mm):
+							revs2 = revolutions.Revolutions()
+
+							# 31→2월 같은 불가능한 날짜 보정
+							dd = int(self._lr_day)
+							try:
+								while not util.checkDate(int(yy), int(mm), int(dd)) and dd > 1:
+									dd -= 1
+							except Exception:
+								pass
+
+							ok = revs2.compute(revolutions.Revolutions.LUNAR,
+											int(yy), int(mm), int(dd), self.horoscope)
+							if not ok:
+								return
+
+							y, m, d, hh, mi, ss = revs2.t[0], revs2.t[1], revs2.t[2], revs2.t[3], revs2.t[4], revs2.t[5]
+							time2 = chart.Time(y, m, d, hh, mi, ss, False,
+											self.horoscope.time.cal, chart.Time.GREENWICH,
+											self._rev_ctx['plus'], 0, 0, False, self._rev_ctx['place'], False)
+							chart2 = chart.Chart(self.horoscope.name, self.horoscope.male, time2,
+												self._rev_ctx['place'], self._rev_ctx['revtype'], '', self.options, False)
+
+							newtitle2 = self.title.replace(
+								mtexts.typeList[self.horoscope.htype],
+								mtexts.typeList[self._rev_ctx['revtype']]+' ('+str(time2.year)+'.'
+								+ common.common.months[time2.month-1]+'.'+str(time2.day)+' '
+								+ str(time2.hour)+':'+str(time2.minute).zfill(2)+':'+str(time2.second).zfill(2)+'('
+								+ mtexts.txts['GMT']+'))'
+							)
+
+							try:
+								# 일부 빌드에선 이 메서드가 없습니다(당신 케이스).
+								self._rev_frame.change_chart(chart2)
+								self._rev_frame.SetTitle(newtitle2)
+								wx.CallAfter(self._rev_frame.Raise)
+								wx.CallAfter(self._rev_frame.SetFocus)
+							except Exception:
+								# ★ 폴백: 기존 프레임을 안전하게 닫고 새로 띄웁니다(솔라와 동일 패턴).
+								try:
+									self._rev_frame.Destroy()
+								except Exception:
+									pass
+
+								# 새 리턴 프레임 오픈
+								self._rev_frame = transitframe.TransitFrame(self, newtitle2, chart2, self.horoscope, self.options)
+								self._rev_frame.Show(True)
+								wx.CallAfter(self._rev_frame.Raise)
+								wx.CallAfter(self._rev_frame.SetFocus)
+
+								# 리턴 프레임이 닫히면 스텝퍼도 같이 닫히도록(이미 위에서 정의한 핸들러)
+								self._rev_frame.Bind(wx.EVT_CLOSE, _on_close)
+
+						# 3) 스텝퍼에 현재값/설정 콜백 연결
+						def _get_lr_ym():
+							return (self._lr_year, self._lr_month)
+
+						def _set_lr_ym(yy, mm):
+							self._lr_year, self._lr_month = int(yy), int(mm)
+							_set_lr_ym_and_refresh(self._lr_year, self._lr_month)
+
+						from revolutionsdlg import RevolutionMonthStepper  # 있어도 무방, 없으면 추가
+						self._rev_stepper = RevolutionMonthStepper(
+							parent=self,            # ★ 메인 프레임을 부모로!
+							get_ym_cb=_get_lr_ym,
+							set_ym_cb=_set_lr_ym,
+						)
+						self._rev_stepper.Show(True)
+						try:
+							self._rev_stepper.CentreOnScreen()
+						except Exception:
+							self._rev_stepper.CenterOnScreen()
+						self._rev_stepper.Raise()
 
 				dlg.Destroy()
 			else:
@@ -2083,12 +2183,12 @@ class MFrame(wx.Frame):
 				if hasattr(self, "_secprog_tbl") and self._secprog_tbl:
 					self._secprog_tbl.change_chart(prg)
 				else:
-					title = self.title.replace(mtexts.txts['Radix'], u'Positions for date')
+					title = self.title.replace(mtexts.txts['Radix'], u'Positions for Date')
 					self._secprog_tbl = secdirframe.SecProgPosTableFrame(self, title, prg, buddy_dlg=self._secui_dlg)
 					self._secprog_tbl.Show(True); self._secprog_tbl.Raise()
 			except Exception as e:
 				try:
-					wx.MessageBox(u"Positions table error (Calculate): %s" % e, u"Positions for date")
+					wx.MessageBox(u"Positions table error (Calculate): %s" % e, u"Positions for Date")
 				except:
 					pass
 
@@ -2110,7 +2210,7 @@ class MFrame(wx.Frame):
 
 		# 표가 없으면 생성, 있으면 갱신
 		try:
-			title0 = self.title.replace(mtexts.txts['Radix'], u'Positions for date')
+			title0 = self.title.replace(mtexts.txts['Radix'], u'Positions for Date')
 			if not hasattr(self, "_secprog_tbl") or not self._secprog_tbl:
 				# ★ 최초 생성 때부터 팝업을 짝으로 넘김
 				self._secprog_tbl = secdirframe.SecProgPosTableFrame(
@@ -2135,7 +2235,7 @@ class MFrame(wx.Frame):
 
 		except Exception as e:
 			try:
-				wx.MessageBox(u"Positions table error (initial): %s" % e, u"Positions for date")
+				wx.MessageBox(u"Positions table error (initial): %s" % e, u"Positions for Date")
 			except:
 				pass
 
@@ -3075,7 +3175,7 @@ class MFrame(wx.Frame):
 # Elias -  V 8.0.5
 # Roberto - V 7.4.4-804
 
-		info.Version = '8.4.8'
+		info.Version = '8.4.9'
 # ###########################################
 		info.Copyright = mtexts.txts['FreeSoft']
 		info.Description = mtexts.txts['Description']+str(astrology.swe_version())

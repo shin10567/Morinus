@@ -28,7 +28,13 @@ class RevolutionYearStepper(wx.Dialog):
     """
     def __init__(self, parent, get_year_cb, set_year_cb):
         wx.Dialog.__init__(self, parent, -1, "Revolution Year",
-                           style=wx.DEFAULT_DIALOG_STYLE | wx.STAY_ON_TOP | wx.RESIZE_BORDER)
+                        style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        # (선택) parent가 TopLevel이면 효과: 부모 위에만 뜸
+        try:
+            self.SetWindowStyleFlag(self.GetWindowStyleFlag() | wx.FRAME_FLOAT_ON_PARENT)
+        except Exception:
+            pass
+
         self.get_year = get_year_cb
         self.set_year = set_year_cb
 
@@ -81,6 +87,79 @@ class RevolutionYearStepper(wx.Dialog):
         self.set_year(self.get_year() + 1)
         self._refresh()
 
+class RevolutionMonthStepper(wx.Dialog):
+    """
+    Lunar Revolution용: 가운데 Year, 그 아래 Month 두 줄 라벨.
+    +1 Month 버튼은 '왼쪽', -1 Month는 '오른쪽'. 버튼은 두툼.
+    get_ym_cb() -> (year:int, month:int)
+    set_ym_cb(year:int, month:int) -> None
+    """
+    def __init__(self, parent, get_ym_cb, set_ym_cb):
+        wx.Dialog.__init__(self, parent, -1, "Revolution Month",
+                           style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        try:
+            self.SetWindowStyleFlag(self.GetWindowStyleFlag() | wx.FRAME_FLOAT_ON_PARENT)
+        except Exception:
+            pass
+
+        # 콜백 저장
+        self.get_ym = get_ym_cb
+        self.set_ym = set_ym_cb
+
+        # 라벨 2줄 (가운데 정렬)
+        y, m = self.get_ym()
+        self.lbl_year  = wx.StaticText(self, -1, "Year: %s"   % y)
+        self.lbl_month = wx.StaticText(self, -1, "Month: %02d" % m)
+
+        vlabel = wx.BoxSizer(wx.VERTICAL)
+        vlabel.Add(self.lbl_year,  0, wx.ALIGN_CENTER | wx.BOTTOM, 2)
+        vlabel.Add(self.lbl_month, 0, wx.ALIGN_CENTER | wx.TOP,    2)
+
+        # 버튼(+가 왼쪽, 두툼)
+        self.btn_next = wx.Button(self, -1, "+1 Month"); self.btn_next.SetMinSize((-1, 45))
+        self.btn_prev = wx.Button(self, -1, "-1 Month"); self.btn_prev.SetMinSize((-1, 45))
+
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        row.Add(self.btn_next, 0, wx.ALL, 8)  # +가 왼쪽
+        row.Add(vlabel,        0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 8)
+        row.Add(self.btn_prev, 0, wx.ALL, 8)
+
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(row, 0, wx.ALL, 4)
+        self.SetSizerAndFit(outer)
+
+        # 이벤트/단축키
+        self.Bind(wx.EVT_BUTTON, self._on_prev, self.btn_prev)
+        self.Bind(wx.EVT_BUTTON, self._on_next, self.btn_next)
+        accel = wx.AcceleratorTable([
+            (0, wx.WXK_LEFT,  self.btn_prev.GetId()),
+            (0, wx.WXK_RIGHT, self.btn_next.GetId()),
+        ])
+        self.SetAcceleratorTable(accel)
+
+    def _refresh_labels(self):
+        y, m = self.get_ym()
+        self.lbl_year.SetLabel("Year: %s"   % y)
+        self.lbl_month.SetLabel("Month: %02d" % m)
+        self.Layout()
+        self.Fit()
+
+    def _on_prev(self, evt):
+        y, m = self.get_ym()
+        m -= 1
+        if m < 1:
+            m = 12; y -= 1
+        self.set_ym(y, m)
+        self._refresh_labels()
+
+    def _on_next(self, evt):
+        y, m = self.get_ym()
+        m += 1
+        if m > 12:
+            m = 1; y += 1
+        self.set_ym(y, m)
+        self._refresh_labels()
+
 class RevolutionsDlg(wx.Dialog):
     def __init__(self, parent):
         # Instead of calling wx.Dialog.__init__ we precreate the dialog
@@ -95,6 +174,10 @@ class RevolutionsDlg(wx.Dialog):
         # object into the real wrapper of the dialog (instead of pre)
         # as far as the wxPython extension is concerned.
         self.PostCreate(pre)
+        # 팝업이 뜨기 '직전'의 top window를 기억해 둔다(대개 리턴 차트 프레임).
+        self._prev_top = wx.GetActiveWindow()
+        if not isinstance(self._prev_top, wx.TopLevelWindow) or self._prev_top is self:
+            self._prev_top = parent
 
         #main vertical sizer
         mvsizer = wx.BoxSizer(wx.VERTICAL)
@@ -175,7 +258,9 @@ class RevolutionsDlg(wx.Dialog):
         mvsizer.Add(btnsizer, 0, wx.GROW|wx.ALL, 10)
         self.SetSizer(mvsizer)
         mvsizer.Fit(self)
-
+        self.CentreOnParent()
+        self.Bind(wx.EVT_BUTTON, self.onCancel, id=wx.ID_CANCEL)
+        self.Bind(wx.EVT_CLOSE, self.onClose)
         btnOk.SetFocus()
 
         self.Bind(wx.EVT_BUTTON, self.onOK, id=wx.ID_OK)
@@ -185,13 +270,73 @@ class RevolutionsDlg(wx.Dialog):
         if (self.Validate() and self.stime.Validate()):
 
             if util.checkDate(int(self.year.GetValue()), int(self.month.GetValue()), int(self.day.GetValue())):
-                self.Close()
                 self.SetReturnCode(wx.ID_OK)
+                wx.CallAfter(self._restore_parent)  # 닫힌 직후 부모를 최상단으로
+                try:
+                    self.EndModal(wx.ID_OK)         # 모달 종료(정석)
+                except Exception:
+                    self.Close()                    # 혹시 모달이 아닐 경우 안전장치
             else:
-                dlgm = wx.MessageDialog(None, mtexts.txts['InvalidDate']+' ('+self.year.GetValue()+'.'+self.month.GetValue()+'.'+self.day.GetValue()+'.)', mtexts.txts['Error'], wx.OK|wx.ICON_EXCLAMATION)
+                dlgm = wx.MessageDialog(self, mtexts.txts['InvalidDate']+' ('+self.year.GetValue()+'.'+self.month.GetValue()+'.'+self.day.GetValue()+'.)', mtexts.txts['Error'], wx.OK|wx.ICON_EXCLAMATION)
                 dlgm.ShowModal()		
                 dlgm.Destroy()
 
+    def _restore_parent(self):
+        # 1순위: 팝업 뜨기 직전의 top window (대개 리턴 차트)
+        candidates = []
+        if getattr(self, "_prev_top", None):
+            candidates.append(self._prev_top)
+
+        # 2순위: 직접 parent
+        p = self.GetParent()
+        if p and p not in candidates:
+            candidates.append(p)
+
+        # 3순위: 화면에 떠 있는 TopLevel 중 제목에 Revolution/Return이 들어간 창(리턴 차트 추정)
+        try:
+            for w in wx.GetTopLevelWindows():
+                title = ""
+                try:
+                    title = w.GetTitle() or ""
+                except Exception:
+                    pass
+                if isinstance(w, wx.TopLevelWindow) and w.IsShown():
+                    t = title.lower()
+                    if ("revolution" in t) or ("return" in t) or ("solar" in t):
+                        if w not in candidates:
+                            candidates.append(w)
+        except Exception:
+            pass
+
+        # 4순위: 그 밖의 보이는 TopLevel들(마지막 안전망)
+        try:
+            for w in wx.GetTopLevelWindows():
+                if isinstance(w, wx.TopLevelWindow) and w.IsShown() and w not in candidates:
+                    candidates.append(w)
+        except Exception:
+            pass
+
+        # 순서대로 Raise/Focus 시도
+        for w in candidates:
+            try:
+                w.Raise()
+                w.SetFocus()
+                break
+            except Exception:
+                continue
+
+    def onCancel(self, evt):
+        self.SetReturnCode(wx.ID_CANCEL)
+        wx.CallAfter(self._restore_parent)
+        try:
+            self.EndModal(wx.ID_CANCEL)
+        except Exception:
+            self.Close()
+
+    def onClose(self, evt):
+        # 창의 X 버튼으로 닫힐 때도 부모를 올려준다
+        wx.CallAfter(self._restore_parent)
+        evt.Skip()
 
     def initialize(self, chrt):
         year = chrt.time.year
