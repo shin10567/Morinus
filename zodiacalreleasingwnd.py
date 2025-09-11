@@ -369,7 +369,7 @@ class ZRDrillWnd(commonwnd.CommonWnd):
         # 헤더
         head_y = BOR
         draw.rectangle(((BOR, head_y),(BOR+self.TITLE_W, head_y+self.HEAD_H)), outline=tbl, fill=bkg)
-        heads = (u"Level", u"Sign", u"Start", u"Length")
+        heads = (u"Lv.", u"Sign", u"Start", u"Length")
         x = BOR
         for i,h in enumerate(heads):
             tw, th = draw.textsize(h, self.fntText)
