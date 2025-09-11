@@ -43,7 +43,7 @@ menutxtseng = {'MHoroscope':'&Horoscope',
 # ############### V 8.0.1
 'TMDodecatemoria':'Dodecatemoria\tCtrl+F10', 'TMDodecatemoriaDoc':'Show Dodecatemoria', 
 # ###############
-'TMAngleAtBirth':'Angle at Birth\tCtrl+F11', 'TMAngleAtBirthDoc':'Find fixed stars meeting Asc/Dsc/MC/IC (true sphere)',
+'TMAngleAtBirth':'Angle at Birth\tCtrl+F11', 'TMAngleAtBirthDoc':'Find fixed stars meeting Asc/Dsc/MC/IC (mundane only)',
 'TMPrimaryDirs':'Primary Directions\tCtrl+F12', 'TMPrimaryDirsDoc':'Displays list of primary directions',
 'MCharts':'&Charts', 
 'PMTransits':'Transits\tShift+Ctrl+F1', 'PMTransitsDoc':'Transit for a given date', 
