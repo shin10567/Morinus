@@ -14,7 +14,7 @@ class ZRFrame(wx.Frame):
         t = title
         if mtexts:
             try:
-                t = title.replace(mtexts.typeList[horoscope.htype], u"Zodiacal releasing")
+                t = title.replace(mtexts.typeList[horoscope.htype], u"Zodiacal Releasing")
             except:
                 t = u"Zodiacal Releasing"
         wx.Frame.__init__(self, parent, -1, t, wx.DefaultPosition, wx.Size(380, 480))

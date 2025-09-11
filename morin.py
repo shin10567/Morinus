@@ -507,7 +507,6 @@ class MFrame(wx.Frame):
 
 		self.Bind(wx.EVT_MENU, self.onHelp, id=self.ID_Help)
 		self.Bind(wx.EVT_MENU, self.onAbout, id=self.ID_About)
-		self.Bind(wx.EVT_MENU, self.onAngleAtBirth, id=self.ID_AngleAtBirth)
 		self.SetAcceleratorTable(wx.AcceleratorTable([
 			(wx.ACCEL_CTRL, wx.WXK_F11, self.ID_AngleAtBirth),
 			(wx.ACCEL_CTRL, ord('1'),  self.ID_ZodiacalReleasing),  # <-- 추가
@@ -1069,25 +1068,50 @@ class MFrame(wx.Frame):
 			self.filehistory.RemoveFileFromHistory(fileNum)
 
 
+	#def destroyDlgs(self):
+		#if self.trdatedlg != None:
+			#self.trdatedlg.Destroy()
+			#self.trdatedlg = None
+		#if self.trmondlg != None:
+			#self.trmondlg.Destroy()
+			#self.trmondlg = None
+		#if self.suntrdlg != None:
+			#self.suntrdlg.Destroy()
+			#self.suntrdlg = None
+		#if self.revdlg != None:
+			#self.revdlg.Destroy()
+			#self.revdlg = None
+		#if self.secdirdlg != None:
+			#self.secdirdlg.Destroy()
+			#self.secdirdlg = None
+		#if self.pdrangedlg != None:
+			#self.pdrangedlg.Destroy()
+			#self.pdrangedlg = None
+
 	def destroyDlgs(self):
-		if self.trdatedlg != None:
-			self.trdatedlg.Destroy()
-			self.trdatedlg = None
-		if self.trmondlg != None:
-			self.trmondlg.Destroy()
-			self.trmondlg = None
-		if self.suntrdlg != None:
-			self.suntrdlg.Destroy()
-			self.suntrdlg = None
-		if self.revdlg != None:
-			self.revdlg.Destroy()
-			self.revdlg = None
-		if self.secdirdlg != None:
-			self.secdirdlg.Destroy()
-			self.secdirdlg = None
-		if self.pdrangedlg != None:
-			self.pdrangedlg.Destroy()
-			self.pdrangedlg = None
+		import wx
+		import wx._core as _core
+
+		def _safe_destroy(attr):
+			win = getattr(self, attr, None)
+			if win is None:
+				return
+			# dead 객체 래퍼면 바로 참조 끊기
+			try:
+				if isinstance(win, _core._wxPyDeadObject):
+					setattr(self, attr, None)
+					return
+			except Exception:
+				pass
+			# Destroy 시도
+			try:
+				win.Destroy()
+			except Exception:
+				pass
+			setattr(self, attr, None)
+
+		for name in ('trdatedlg', 'trmondlg', 'suntrdlg', 'revdlg', 'secdirdlg', 'pdrangedlg'):
+			_safe_destroy(name)
 
 
 	#Table-menu
@@ -1721,243 +1745,256 @@ class MFrame(wx.Frame):
 			self.revdlg = revolutionsdlg.RevolutionsDlg(self)
 			self.revdlg.initialize(self.horoscope)
 		self.revdlg.CenterOnParent()
+		try:
+			val = self.revdlg.ShowModal()
+			if val != wx.ID_OK:
+				return
+			if val == wx.ID_OK:	
+				wx.BeginBusyCursor()
+				revs = revolutions.Revolutions()
+				result = revs.compute(self.revdlg.typecb.GetCurrentSelection(),
+									int(self.revdlg.year.GetValue()),
+									int(self.revdlg.month.GetValue()),
+									int(self.revdlg.day.GetValue()),
+									self.horoscope)
+				wx.EndBusyCursor()
 
-		val = self.revdlg.ShowModal()
-		if val == wx.ID_OK:	
-			wx.BeginBusyCursor()
+				t1, t2, t3, t4, t5, t6 = revs.t[0], revs.t[1], revs.t[2], revs.t[3], revs.t[4], revs.t[5] 
+				if result:
+					if self.options.ayanamsha != 0 and self.revdlg.typecb.GetCurrentSelection() == 0:
+						t1, t2, t3, t4, t5, t6 = self.calcPrecNutCorrectedSolar(revs) #y, m, d, hour, min, sec
 
-			revs = revolutions.Revolutions()
-			result = revs.compute(self.revdlg.typecb.GetCurrentSelection(), int(self.revdlg.year.GetValue()), int(self.revdlg.month.GetValue()), int(self.revdlg.day.GetValue()), self.horoscope)
+					dlg = timespacedlg.TimeSpaceDlg(self, mtexts.txts['Revolutions'], self.options.langid)
+					ti = (t1, t2, t3, t4, t5, t6, chart.Time.GREGORIAN, chart.Time.GREENWICH, 0, 0)
+					dlg.initialize(self.horoscope, ti)	
+					dlg.CenterOnParent()
 
-			wx.EndBusyCursor()
+					val = dlg.ShowModal()
+					if val != wx.ID_OK:
+						dlg.Destroy()
+						return
+					if val == wx.ID_OK:
+						wait = wx.BusyCursor()
+						direc = dlg.placerbE.GetValue()
+						hemis = dlg.placerbN.GetValue()
+						place = chart.Place(dlg.birthplace.GetValue(), int(dlg.londeg.GetValue()), int(dlg.lonmin.GetValue()), 0, direc, int(dlg.latdeg.GetValue()), int(dlg.latmin.GetValue()), 0, hemis, 0)#the same as for the transits
 
-			t1, t2, t3, t4, t5, t6 = revs.t[0], revs.t[1], revs.t[2], revs.t[3], revs.t[4], revs.t[5] 
-			if result:
-				if self.options.ayanamsha != 0 and self.revdlg.typecb.GetCurrentSelection() == 0:
-					t1, t2, t3, t4, t5, t6 = self.calcPrecNutCorrectedSolar(revs) #y, m, d, hour, min, sec
+						plus = True
+						if dlg.pluscb.GetCurrentSelection() == 1:
+							plus = False
+						time = chart.Time(t1, t2, t3, t4, t5, t6, False, self.horoscope.time.cal, chart.Time.GREENWICH, plus, 0, 0, False, place, False)
 
-				dlg = timespacedlg.TimeSpaceDlg(self, mtexts.txts['Revolutions'], self.options.langid)
-				ti = (t1, t2, t3, t4, t5, t6, chart.Time.GREGORIAN, chart.Time.GREENWICH, 0, 0)
-				dlg.initialize(self.horoscope, ti)	
-				dlg.CenterOnParent()
+						revtype = chart.Chart.REVOLUTION
+						if self.revdlg.typecb.GetCurrentSelection() == 0:
+							revtype = chart.Chart.SOLAR
+						elif self.revdlg.typecb.GetCurrentSelection() == 1:
+							revtype = chart.Chart.LUNAR
 
-				val = dlg.ShowModal()
+						revolution = chart.Chart(self.horoscope.name, self.horoscope.male, time, place, revtype, '', self.options, False)
+						dlg.Destroy()
+						rw = transitframe.TransitFrame(self, self.title.replace(mtexts.typeList[self.horoscope.htype], mtexts.typeList[revtype]+' ('+str(time.year)+'.'+common.common.months[time.month-1]+'.'+str(time.day)+' '+str(time.hour)+':'+str(time.minute).zfill(2)+':'+str(time.second).zfill(2)+'('+mtexts.txts['GMT']+'))'), revolution, self.horoscope, self.options)
+						rw.Show(True)
+						wx.CallAfter(rw.Raise)
+						wx.CallAfter(rw.SetFocus)
+						# 현재 프레임/컨텍스트 저장
+						self._rev_frame = rw
+						self._rev_ctx   = {'place': place, 'plus': plus, 'revtype': revtype}
 
-				if val == wx.ID_OK:
-					wait = wx.BusyCursor()
-					direc = dlg.placerbE.GetValue()
-					hemis = dlg.placerbN.GetValue()
-					place = chart.Place(dlg.birthplace.GetValue(), int(dlg.londeg.GetValue()), int(dlg.lonmin.GetValue()), 0, direc, int(dlg.latdeg.GetValue()), int(dlg.latmin.GetValue()), 0, hemis, 0)#the same as for the transits
+						# 이전에 떠 있던 스텝퍼가 있으면 닫기(다른 리턴일 수도 있으니 먼저 정리)
+						try:
+							if hasattr(self, "_rev_stepper") and self._rev_stepper:
+								self._rev_stepper.Destroy()
+								self._rev_stepper = None
+						except Exception:
+							pass
 
-					plus = True
-					if dlg.pluscb.GetCurrentSelection() == 1:
-						plus = False
-					time = chart.Time(t1, t2, t3, t4, t5, t6, False, self.horoscope.time.cal, chart.Time.GREENWICH, plus, 0, 0, False, place, False)
+						# ★ 솔라 리턴에서만 스텝퍼를 띄운다
+						if self.revdlg.typecb.GetCurrentSelection() == revolutions.Revolutions.SOLAR:
 
-					revtype = chart.Chart.REVOLUTION
-					if self.revdlg.typecb.GetCurrentSelection() == 0:
-						revtype = chart.Chart.SOLAR
-					elif self.revdlg.typecb.GetCurrentSelection() == 1:
-						revtype = chart.Chart.LUNAR
+							# 현재 리턴 연도 저장 (dlg에서 받은 t1이 리턴 연도)
+							self._rev_year = t1
 
-					revolution = chart.Chart(self.horoscope.name, self.horoscope.male, time, place, revtype, '', self.options, False)
+							# 리턴 프레임이 닫히면 스텝퍼도 함께 닫기
+							def _on_close(evt):
+								try:
+									if hasattr(self, "_rev_stepper") and self._rev_stepper:
+										self._rev_stepper.Destroy()
+										self._rev_stepper = None
+								except Exception:
+									pass
+								evt.Skip()
+							self._rev_frame.Bind(wx.EVT_CLOSE, _on_close)
+
+							# 연도 갱신 콜백(솔라 리턴만 지원)
+							def _set_rev_year_and_refresh(new_year):
+								revs2 = revolutions.Revolutions()
+								ok = revs2.compute(revolutions.Revolutions.SOLAR,
+												int(new_year),
+												self.horoscope.time.month,
+												self.horoscope.time.day,
+												self.horoscope)
+								if not ok:
+									return
+
+								y, m, d, hh, mi, ss = revs2.t[0], revs2.t[1], revs2.t[2], revs2.t[3], revs2.t[4], revs2.t[5]
+								try:
+									if self.options.ayanamsha != 0 and self.revdlg.typecb.GetCurrentSelection() == 0:
+										y, m, d, hh, mi, ss = self.calcPrecNutCorrectedSolar(revs2)
+								except Exception:
+									pass
+
+								time2 = chart.Time(y, m, d, hh, mi, ss, False,
+												self.horoscope.time.cal, chart.Time.GREENWICH,
+												self._rev_ctx['plus'], 0, 0, False, self._rev_ctx['place'], False)
+								chart2 = chart.Chart(self.horoscope.name, self.horoscope.male, time2,
+													self._rev_ctx['place'], self._rev_ctx['revtype'], '', self.options, False)
+
+								newtitle2 = self.title.replace(
+									mtexts.typeList[self.horoscope.htype],
+									mtexts.typeList[self._rev_ctx['revtype']]+' ('+str(time2.year)+'.'
+									+common.common.months[time2.month-1]+'.'+str(time2.day)+' '
+									+str(time2.hour)+':'+str(time2.minute).zfill(2)+':'+str(time2.second).zfill(2)+'('
+									+mtexts.txts['GMT']+'))'
+								)
+
+								try:
+									self._rev_frame.change_chart(chart2)
+									self._rev_frame.SetTitle(newtitle2)
+									wx.CallAfter(self._rev_frame.Raise)
+									wx.CallAfter(self._rev_frame.SetFocus)
+								except Exception:
+									try:
+										self._rev_frame.Destroy()
+									except Exception:
+										pass
+									self._rev_frame = transitframe.TransitFrame(self, newtitle2, chart2, self.horoscope, self.options)
+									self._rev_frame.Show(True)
+									wx.CallAfter(self._rev_frame.Raise)
+									wx.CallAfter(self._rev_frame.SetFocus)
+									self._rev_frame.Bind(wx.EVT_CLOSE, _on_close)
+
+								self._rev_year = int(new_year)
+
+							# 스텝퍼 생성(부모는 메인 프레임)
+							from revolutionsdlg import RevolutionYearStepper
+							self._rev_stepper = RevolutionYearStepper(
+								parent=self,
+								get_year_cb=lambda: self._rev_year,
+								set_year_cb=_set_rev_year_and_refresh
+							)
+							self._rev_stepper.Show(True)
+							try:
+								self._rev_stepper.CentreOnScreen()
+							except Exception:
+								self._rev_stepper.CenterOnScreen()
+							self._rev_stepper.Raise()
+						# ★ 루나 리턴에도 월 스텝퍼를 붙인다
+						# SOLAR 분기 밑에 이어서:
+						elif self.revdlg.typecb.GetCurrentSelection() == revolutions.Revolutions.LUNAR:
+
+							# 1) 다이얼로그에서 고른 시작 날짜를 기억(월만 바꿔가며 재계산)
+							self._lr_year  = int(self.revdlg.year.GetValue())
+							self._lr_month = int(self.revdlg.month.GetValue())
+							self._lr_day   = int(self.revdlg.day.GetValue())
+
+							# 리턴 프레임이 닫히면 스텝퍼도 함께 닫기
+							def _on_close(evt):
+								try:
+									if hasattr(self, "_rev_stepper") and self._rev_stepper:
+										self._rev_stepper.Destroy()
+										self._rev_stepper = None
+								except Exception:
+									pass
+								evt.Skip()
+							self._rev_frame.Bind(wx.EVT_CLOSE, _on_close)
+
+							# 2) (yy, mm)로 루나 리턴 재계산 후 프레임 갱신
+							def _set_lr_ym_and_refresh(yy, mm):
+								revs2 = revolutions.Revolutions()
+
+								# 31→2월 같은 불가능한 날짜 보정
+								dd = int(self._lr_day)
+								try:
+									while not util.checkDate(int(yy), int(mm), int(dd)) and dd > 1:
+										dd -= 1
+								except Exception:
+									pass
+
+								ok = revs2.compute(revolutions.Revolutions.LUNAR,
+												int(yy), int(mm), int(dd), self.horoscope)
+								if not ok:
+									return
+
+								y, m, d, hh, mi, ss = revs2.t[0], revs2.t[1], revs2.t[2], revs2.t[3], revs2.t[4], revs2.t[5]
+								time2 = chart.Time(y, m, d, hh, mi, ss, False,
+												self.horoscope.time.cal, chart.Time.GREENWICH,
+												self._rev_ctx['plus'], 0, 0, False, self._rev_ctx['place'], False)
+								chart2 = chart.Chart(self.horoscope.name, self.horoscope.male, time2,
+													self._rev_ctx['place'], self._rev_ctx['revtype'], '', self.options, False)
+
+								newtitle2 = self.title.replace(
+									mtexts.typeList[self.horoscope.htype],
+									mtexts.typeList[self._rev_ctx['revtype']]+' ('+str(time2.year)+'.'
+									+ common.common.months[time2.month-1]+'.'+str(time2.day)+' '
+									+ str(time2.hour)+':'+str(time2.minute).zfill(2)+':'+str(time2.second).zfill(2)+'('
+									+ mtexts.txts['GMT']+'))'
+								)
+
+								try:
+									# 일부 빌드에선 이 메서드가 없습니다(당신 케이스).
+									self._rev_frame.change_chart(chart2)
+									self._rev_frame.SetTitle(newtitle2)
+									wx.CallAfter(self._rev_frame.Raise)
+									wx.CallAfter(self._rev_frame.SetFocus)
+								except Exception:
+									# ★ 폴백: 기존 프레임을 안전하게 닫고 새로 띄웁니다(솔라와 동일 패턴).
+									try:
+										self._rev_frame.Destroy()
+									except Exception:
+										pass
+
+									# 새 리턴 프레임 오픈
+									self._rev_frame = transitframe.TransitFrame(self, newtitle2, chart2, self.horoscope, self.options)
+									self._rev_frame.Show(True)
+									wx.CallAfter(self._rev_frame.Raise)
+									wx.CallAfter(self._rev_frame.SetFocus)
+
+									# 리턴 프레임이 닫히면 스텝퍼도 같이 닫히도록(이미 위에서 정의한 핸들러)
+									self._rev_frame.Bind(wx.EVT_CLOSE, _on_close)
+
+							# 3) 스텝퍼에 현재값/설정 콜백 연결
+							def _get_lr_ym():
+								return (self._lr_year, self._lr_month)
+
+							def _set_lr_ym(yy, mm):
+								self._lr_year, self._lr_month = int(yy), int(mm)
+								_set_lr_ym_and_refresh(self._lr_year, self._lr_month)
+
+							from revolutionsdlg import RevolutionMonthStepper  # 있어도 무방, 없으면 추가
+							self._rev_stepper = RevolutionMonthStepper(
+								parent=self,            # ★ 메인 프레임을 부모로!
+								get_ym_cb=_get_lr_ym,
+								set_ym_cb=_set_lr_ym,
+							)
+							self._rev_stepper.Show(True)
+							try:
+								self._rev_stepper.CentreOnScreen()
+							except Exception:
+								self._rev_stepper.CenterOnScreen()
+							self._rev_stepper.Raise()
+
 					dlg.Destroy()
-					rw = transitframe.TransitFrame(self, self.title.replace(mtexts.typeList[self.horoscope.htype], mtexts.typeList[revtype]+' ('+str(time.year)+'.'+common.common.months[time.month-1]+'.'+str(time.day)+' '+str(time.hour)+':'+str(time.minute).zfill(2)+':'+str(time.second).zfill(2)+'('+mtexts.txts['GMT']+'))'), revolution, self.horoscope, self.options)
-					rw.Show(True)
-					wx.CallAfter(rw.Raise)
-					wx.CallAfter(rw.SetFocus)
-					# 현재 프레임/컨텍스트 저장
-					self._rev_frame = rw
-					self._rev_ctx   = {'place': place, 'plus': plus, 'revtype': revtype}
-
-					# 이전에 떠 있던 스텝퍼가 있으면 닫기(다른 리턴일 수도 있으니 먼저 정리)
-					try:
-						if hasattr(self, "_rev_stepper") and self._rev_stepper:
-							self._rev_stepper.Destroy()
-							self._rev_stepper = None
-					except Exception:
-						pass
-
-					# ★ 솔라 리턴에서만 스텝퍼를 띄운다
-					if self.revdlg.typecb.GetCurrentSelection() == revolutions.Revolutions.SOLAR:
-
-						# 현재 리턴 연도 저장 (dlg에서 받은 t1이 리턴 연도)
-						self._rev_year = t1
-
-						# 리턴 프레임이 닫히면 스텝퍼도 함께 닫기
-						def _on_close(evt):
-							try:
-								if hasattr(self, "_rev_stepper") and self._rev_stepper:
-									self._rev_stepper.Destroy()
-									self._rev_stepper = None
-							except Exception:
-								pass
-							evt.Skip()
-						self._rev_frame.Bind(wx.EVT_CLOSE, _on_close)
-
-						# 연도 갱신 콜백(솔라 리턴만 지원)
-						def _set_rev_year_and_refresh(new_year):
-							revs2 = revolutions.Revolutions()
-							ok = revs2.compute(revolutions.Revolutions.SOLAR,
-											int(new_year),
-											self.horoscope.time.month,
-											self.horoscope.time.day,
-											self.horoscope)
-							if not ok:
-								return
-
-							y, m, d, hh, mi, ss = revs2.t[0], revs2.t[1], revs2.t[2], revs2.t[3], revs2.t[4], revs2.t[5]
-							try:
-								if self.options.ayanamsha != 0 and self.revdlg.typecb.GetCurrentSelection() == 0:
-									y, m, d, hh, mi, ss = self.calcPrecNutCorrectedSolar(revs2)
-							except Exception:
-								pass
-
-							time2 = chart.Time(y, m, d, hh, mi, ss, False,
-											self.horoscope.time.cal, chart.Time.GREENWICH,
-											self._rev_ctx['plus'], 0, 0, False, self._rev_ctx['place'], False)
-							chart2 = chart.Chart(self.horoscope.name, self.horoscope.male, time2,
-												self._rev_ctx['place'], self._rev_ctx['revtype'], '', self.options, False)
-
-							newtitle2 = self.title.replace(
-								mtexts.typeList[self.horoscope.htype],
-								mtexts.typeList[self._rev_ctx['revtype']]+' ('+str(time2.year)+'.'
-								+common.common.months[time2.month-1]+'.'+str(time2.day)+' '
-								+str(time2.hour)+':'+str(time2.minute).zfill(2)+':'+str(time2.second).zfill(2)+'('
-								+mtexts.txts['GMT']+'))'
-							)
-
-							try:
-								self._rev_frame.change_chart(chart2)
-								self._rev_frame.SetTitle(newtitle2)
-								wx.CallAfter(self._rev_frame.Raise)
-								wx.CallAfter(self._rev_frame.SetFocus)
-							except Exception:
-								try:
-									self._rev_frame.Destroy()
-								except Exception:
-									pass
-								self._rev_frame = transitframe.TransitFrame(self, newtitle2, chart2, self.horoscope, self.options)
-								self._rev_frame.Show(True)
-								wx.CallAfter(self._rev_frame.Raise)
-								wx.CallAfter(self._rev_frame.SetFocus)
-								self._rev_frame.Bind(wx.EVT_CLOSE, _on_close)
-
-							self._rev_year = int(new_year)
-
-						# 스텝퍼 생성(부모는 메인 프레임)
-						from revolutionsdlg import RevolutionYearStepper
-						self._rev_stepper = RevolutionYearStepper(
-							parent=self,
-							get_year_cb=lambda: self._rev_year,
-							set_year_cb=_set_rev_year_and_refresh
-						)
-						self._rev_stepper.Show(True)
-						try:
-							self._rev_stepper.CentreOnScreen()
-						except Exception:
-							self._rev_stepper.CenterOnScreen()
-						self._rev_stepper.Raise()
-					# ★ 루나 리턴에도 월 스텝퍼를 붙인다
-					# SOLAR 분기 밑에 이어서:
-					elif self.revdlg.typecb.GetCurrentSelection() == revolutions.Revolutions.LUNAR:
-
-						# 1) 다이얼로그에서 고른 시작 날짜를 기억(월만 바꿔가며 재계산)
-						self._lr_year  = int(self.revdlg.year.GetValue())
-						self._lr_month = int(self.revdlg.month.GetValue())
-						self._lr_day   = int(self.revdlg.day.GetValue())
-
-						# 리턴 프레임이 닫히면 스텝퍼도 함께 닫기
-						def _on_close(evt):
-							try:
-								if hasattr(self, "_rev_stepper") and self._rev_stepper:
-									self._rev_stepper.Destroy()
-									self._rev_stepper = None
-							except Exception:
-								pass
-							evt.Skip()
-						self._rev_frame.Bind(wx.EVT_CLOSE, _on_close)
-
-						# 2) (yy, mm)로 루나 리턴 재계산 후 프레임 갱신
-						def _set_lr_ym_and_refresh(yy, mm):
-							revs2 = revolutions.Revolutions()
-
-							# 31→2월 같은 불가능한 날짜 보정
-							dd = int(self._lr_day)
-							try:
-								while not util.checkDate(int(yy), int(mm), int(dd)) and dd > 1:
-									dd -= 1
-							except Exception:
-								pass
-
-							ok = revs2.compute(revolutions.Revolutions.LUNAR,
-											int(yy), int(mm), int(dd), self.horoscope)
-							if not ok:
-								return
-
-							y, m, d, hh, mi, ss = revs2.t[0], revs2.t[1], revs2.t[2], revs2.t[3], revs2.t[4], revs2.t[5]
-							time2 = chart.Time(y, m, d, hh, mi, ss, False,
-											self.horoscope.time.cal, chart.Time.GREENWICH,
-											self._rev_ctx['plus'], 0, 0, False, self._rev_ctx['place'], False)
-							chart2 = chart.Chart(self.horoscope.name, self.horoscope.male, time2,
-												self._rev_ctx['place'], self._rev_ctx['revtype'], '', self.options, False)
-
-							newtitle2 = self.title.replace(
-								mtexts.typeList[self.horoscope.htype],
-								mtexts.typeList[self._rev_ctx['revtype']]+' ('+str(time2.year)+'.'
-								+ common.common.months[time2.month-1]+'.'+str(time2.day)+' '
-								+ str(time2.hour)+':'+str(time2.minute).zfill(2)+':'+str(time2.second).zfill(2)+'('
-								+ mtexts.txts['GMT']+'))'
-							)
-
-							try:
-								# 일부 빌드에선 이 메서드가 없습니다(당신 케이스).
-								self._rev_frame.change_chart(chart2)
-								self._rev_frame.SetTitle(newtitle2)
-								wx.CallAfter(self._rev_frame.Raise)
-								wx.CallAfter(self._rev_frame.SetFocus)
-							except Exception:
-								# ★ 폴백: 기존 프레임을 안전하게 닫고 새로 띄웁니다(솔라와 동일 패턴).
-								try:
-									self._rev_frame.Destroy()
-								except Exception:
-									pass
-
-								# 새 리턴 프레임 오픈
-								self._rev_frame = transitframe.TransitFrame(self, newtitle2, chart2, self.horoscope, self.options)
-								self._rev_frame.Show(True)
-								wx.CallAfter(self._rev_frame.Raise)
-								wx.CallAfter(self._rev_frame.SetFocus)
-
-								# 리턴 프레임이 닫히면 스텝퍼도 같이 닫히도록(이미 위에서 정의한 핸들러)
-								self._rev_frame.Bind(wx.EVT_CLOSE, _on_close)
-
-						# 3) 스텝퍼에 현재값/설정 콜백 연결
-						def _get_lr_ym():
-							return (self._lr_year, self._lr_month)
-
-						def _set_lr_ym(yy, mm):
-							self._lr_year, self._lr_month = int(yy), int(mm)
-							_set_lr_ym_and_refresh(self._lr_year, self._lr_month)
-
-						from revolutionsdlg import RevolutionMonthStepper  # 있어도 무방, 없으면 추가
-						self._rev_stepper = RevolutionMonthStepper(
-							parent=self,            # ★ 메인 프레임을 부모로!
-							get_ym_cb=_get_lr_ym,
-							set_ym_cb=_set_lr_ym,
-						)
-						self._rev_stepper.Show(True)
-						try:
-							self._rev_stepper.CentreOnScreen()
-						except Exception:
-							self._rev_stepper.CenterOnScreen()
-						self._rev_stepper.Raise()
-
-				dlg.Destroy()
 			else:
 		 		dlgm = wx.MessageDialog(self, mtexts.txts['CouldnotComputeRevolution'], mtexts.txts['Error'], wx.OK|wx.ICON_EXCLAMATION)
 				dlgm.ShowModal()
-				dlgm.Destroy()#
+				dlgm.Destroy()
+				pass
+		finally:
+			try:
+				self.revdlg.Destroy()
+			except Exception:
+				pass
+			self.revdlg = None
 
 
 	def calcPrecNutCorrectedSolar(self, revs):
@@ -3175,7 +3212,7 @@ class MFrame(wx.Frame):
 # Elias -  V 8.0.5
 # Roberto - V 7.4.4-804
 
-		info.Version = '8.4.9'
+		info.Version = '8.5.1'
 # ###########################################
 		info.Copyright = mtexts.txts['FreeSoft']
 		info.Description = mtexts.txts['Description']+str(astrology.swe_version())

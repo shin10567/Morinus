@@ -49,6 +49,7 @@ class AngleAtBirthWnd(commonwnd.CommonWnd):
         self.SPACE     = self.FONT_SIZE/2                        # 위/아래 여백
         self.LINE_HEIGHT = (self.SPACE + self.FONT_SIZE + self.SPACE)
         self.fntText   = ImageFont.truetype(common.common.abc, self.FONT_SIZE)
+        self.fntBold   = ImageFont.truetype(common.common.abc_bold, self.FONT_SIZE)
 
         # 컬럼: Δt, Star, Angle, Exact Time  (폭은 픽스드스타 방식처럼 글꼴 크기 기반)
         self.W_DT   = 5 * self.FONT_SIZE
@@ -84,6 +85,25 @@ class AngleAtBirthWnd(commonwnd.CommonWnd):
         except Exception as e:
             self.rows = []
             wx.MessageBox(u"Angle at Birth error\n\n%s" % (e,), u"Angle at Birth")
+    
+    def _should_bold(self, mag, dt_min):
+        """겉보기등급(mag)과 Δt(분)으로 이 행을 Bold 처리할지 결정."""
+        try:
+            if mag is None:
+                return False
+            dm = float(dt_min or 0.0)
+
+            if mag < 0.0:
+                return dm <= 8.0
+            if 0.0 <= mag < 1.0:
+                return dm <= 6.0
+            if 1.0 <= mag < 1.5:
+                return dm <= 5.0
+            if mag >= 1.5:
+                return dm <= 4.0
+            return False
+        except Exception:
+            return False
 
     def drawBkg(self):
         # === 색상/배경 ===
@@ -99,7 +119,6 @@ class AngleAtBirthWnd(commonwnd.CommonWnd):
         BOR = commonwnd.CommonWnd.BORDER
         rows_n = len(self.rows)
 
-        # ✅ 빈 결과면 헤더만
         table_height = self.TITLE_HEIGHT if rows_n == 0 else (self.TITLE_HEIGHT + rows_n * self.LINE_HEIGHT)
         width  = BOR + self.TITLE_WIDTH  + BOR
         height = BOR + table_height      + BOR
@@ -114,7 +133,7 @@ class AngleAtBirthWnd(commonwnd.CommonWnd):
                     outline=tableclr, fill=self.bkgclr)
 
         # 헤더 텍스트 중앙정렬
-        heads = (u"\u0394t", u"Fixed Star", u"Angle", u"Exact Time")
+        heads = (u"\u0394T", u"Fixed Star", u"Angle", u"Exact Time")
         col_w = (self.W_DT, self.W_STAR, self.W_ANG, self.W_TIME)
         x = BOR
         for i, h in enumerate(heads):
@@ -128,7 +147,7 @@ class AngleAtBirthWnd(commonwnd.CommonWnd):
         y0 = BOR + self.TITLE_HEIGHT
         draw.line((x0, y0, x0 + self.TITLE_WIDTH, y0), fill=tableclr)
 
-        # ✅ 세로 구분선: 표 전체 높이 기준으로 1회만
+        # 세로 구분선: 표 전체 높이 기준으로 1회만
         xv = x0
         draw.line((xv, y0, xv, BOR + table_height), fill=tableclr)  # 왼쪽(헤더 제외)
 
@@ -154,8 +173,9 @@ class AngleAtBirthWnd(commonwnd.CommonWnd):
 
         # 중앙정렬 셀 텍스트
         r = self.rows[idx]
+        is_bold = self._should_bold(r.get('mag'), r.get('dt_min'))
         cells = (
-            u"\u00B1%.1fmin" % float(r.get('dt_min', 0.0)),  # Δt: ± 기호 고정
+            u"\u00B1%.1f′" % float(r.get('dt_min', 0.0)),  # Δt: ± 기호 고정
             r.get('star',  u"-"),
             r.get('angle', u"-"),
             r.get('time_str', u"-"),
@@ -163,8 +183,9 @@ class AngleAtBirthWnd(commonwnd.CommonWnd):
         col_w = (self.W_DT, self.W_STAR, self.W_ANG, self.W_TIME)
         xx = x
         for i in range(4):
-            tw, th = draw.textsize(cells[i], self.fntText)
+            font = self.fntBold if is_bold else self.fntText
+            tw, th = draw.textsize(cells[i], font)
             draw.text((xx + (col_w[i]-tw)/2, y + (self.LINE_HEIGHT - th)/2),
-                    cells[i], fill=txtclr, font=self.fntText)
+                      cells[i], fill=txtclr, font=font)
             xx += col_w[i]
 

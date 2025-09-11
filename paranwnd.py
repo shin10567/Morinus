@@ -599,17 +599,10 @@ class ParanatellontaWnd(cw.CommonWnd):
         self.TITLE_W = sum(self.COL_W)
 
         # 글꼴: FixStarsWnd와 동일(abc / symbols)
-        self.f_text = ImageFont.truetype(common.common.abc,     self.FONT_SIZE)
-        self.f_sym  = ImageFont.truetype(common.common.symbols, self.FONT_SIZE)
-
-        # (선택) Bold TTF가 있으면 사용, 없으면 None
-        self.f_text_bold = None
+        self.f_text = ImageFont.truetype(common.common.abc,      self.FONT_SIZE)
+        self.f_sym  = ImageFont.truetype(common.common.symbols,  self.FONT_SIZE)
         try:
-            import os
-            base = os.path.dirname(common.common.abc)
-            cand = os.path.join(base, 'DejaVuSansCondensed-Bold.ttf')
-            if os.path.isfile(cand):
-                self.f_text_bold = ImageFont.truetype(cand, self.FONT_SIZE)
+            self.f_text_bold = ImageFont.truetype(common.common.abc_bold, self.FONT_SIZE)
         except Exception:
             self.f_text_bold = None
 
@@ -691,7 +684,7 @@ class ParanatellontaWnd(cw.CommonWnd):
         return u"Paran.bmp"
 
     def getTitle(self):
-        return (u"Δt", u"Planet", u"Fixed Star", u"Angles")
+        return (u"ΔT", u"Planet", u"Fixed Star", u"Angles")
     def refreshBkg(self):
         """
         표 내용을 PIL로 그려 self.buffer(wx.Bitmap)를 만든다.
@@ -795,7 +788,7 @@ class ParanatellontaWnd(cw.CommonWnd):
         )
 
         # --- 헤더 텍스트 ---
-        headers = (u"Δt", u"Planet", u"Fixed Star", u"Angles")
+        headers = (u"ΔT", u"Planet", u"Fixed Star", u"Angles")
         x = BOR
         for i, h in enumerate(headers):
             w = self.COL_W[i]

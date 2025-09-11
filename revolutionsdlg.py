@@ -334,10 +334,16 @@ class RevolutionsDlg(wx.Dialog):
             self.Close()
 
     def onClose(self, evt):
-        # 창의 X 버튼으로 닫힐 때도 부모를 올려준다
         wx.CallAfter(self._restore_parent)
-        evt.Skip()
-
+        try:
+            if self.IsModal():
+                self.SetReturnCode(wx.ID_CANCEL)
+                self.EndModal(wx.ID_CANCEL)
+            else:
+                self.Destroy()
+        except Exception:
+            pass
+            
     def initialize(self, chrt):
         year = chrt.time.year
         month = chrt.time.month

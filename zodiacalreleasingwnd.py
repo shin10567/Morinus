@@ -26,8 +26,9 @@ class ZRWnd(commonwnd.CommonWnd):
         self.INFO_H      = self.LINE_HEIGHT
 
         # [폰트] 텍스트/심볼 모두 Morinus TTF 사용 (antisciawnd.py와 동일)
-        self.fntText   = ImageFont.truetype(common.common.abc,     self.FONT_SIZE)
-        self.fntMor    = ImageFont.truetype(common.common.symbols, self.FONT_SIZE)
+        self.fntText   = ImageFont.truetype(common.common.abc,      self.FONT_SIZE)
+        self.fntTextBold = ImageFont.truetype(common.common.abc_bold, self.FONT_SIZE)
+        self.fntMor    = ImageFont.truetype(common.common.symbols,  self.FONT_SIZE)
 
         # [사인 글리프 테이블] antisciawnd.py와 동일 규칙
         #   기본은 Signs1, 옵션에서 Signs 비활성 시 Signs2 사용
@@ -158,23 +159,30 @@ class ZRWnd(commonwnd.CommonWnd):
             # L1 강조: 배경은 동일(흰칸 금지), 글자만 Bold + 약간 크게
             isL1  = (lvl == 1)
             fTxt  = self.fntText
+            fTxtB = self.fntTextBold
             fZod  = self.fntMor
             if isL1:
-                # 굵기: 구-PIL 호환을 위해 두 번 찍어 굵게 보이게
-                def draw_bold(val, xx, ww, yy):
-                    tw, th = draw.textsize(val, fTxt if ww!=self.W_SIGN else fZod)
-                    cx = xx + (ww - tw)/2; cy = yy + (self.LINE_HEIGHT - th)/2
-                    font = fZod if ww==self.W_SIGN else fTxt
-                    draw.text((cx,   cy), val, fill=txt, font=font)
-                    draw.text((cx-1, cy), val, fill=txt, font=font)
-                # Level / Sign / Start / Length
+                def draw_L1(val, xx, ww, yy):
+                    # 사인 칼럼(W_SIGN)은 morinus 기호 → 두 번 찍기(가짜 Bold)
+                    if ww == self.W_SIGN:
+                        tw, th = draw.textsize(val, fZod)
+                        cx = xx + (ww - tw)/2; cy = yy + (self.LINE_HEIGHT - th)/2
+                        draw.text((cx,   cy), val, fill=txt, font=fZod)
+                        draw.text((cx-1, cy), val, fill=txt, font=fZod)
+                    else:
+                        # 나머지는 진짜 Bold 폰트로 한 번만
+                        tw, th = draw.textsize(val, fTxtB)
+                        cx = xx + (ww - tw)/2; cy = yy + (self.LINE_HEIGHT - th)/2
+                        draw.text((cx, cy), val, fill=txt, font=fTxtB)
+
                 xx = x0
                 vals = (cells[0], cells[1], cells[2], cells[3])
                 wss  = (self.W_LEVEL, self.W_SIGN, self.W_START, self.W_LEN)
                 for vi in range(4):
-                    draw_bold(vals[vi], xx, wss[vi], y)
+                    draw_L1(vals[vi], xx, wss[vi], y)
                     xx += wss[vi]
             else:
+                # 일반 행: 기존 그대로(기호는 fZod, 텍스트는 fTxt)
                 xx = x0
                 for ci,w in enumerate(self.COL_W):
                     val = cells[ci]
@@ -182,6 +190,7 @@ class ZRWnd(commonwnd.CommonWnd):
                     tw, th = draw.textsize(val, fnt)
                     draw.text((xx + (w - tw)/2, y + (self.LINE_HEIGHT - th)/2), val, fill=txt, font=fnt)
                     xx += w
+
 
             # 행 하단선
             draw.line((x0, y + self.LINE_HEIGHT, x0 + self.TITLE_W, y + self.LINE_HEIGHT), fill=tbl)
@@ -297,8 +306,7 @@ class ZRDrillDlg(wx.Dialog):
 
 class ZRDrillWnd(commonwnd.CommonWnd):
     def __init__(self, parent, l2row, signs, fntText, fntMor, mainfr, id=-1, size=wx.DefaultSize):
-        # ❌ 기존: parent.GetParent()... 에서 억지로 chart/options 꺼내던 코드 삭제
-        # ✅ 변경: 프레임(mainfr)에서 바로 받는다
+
         commonwnd.CommonWnd.__init__(self, parent, mainfr.horoscope, mainfr.options, id, size)
         self.mainfr  = mainfr
         self.chart   = mainfr.horoscope
@@ -309,6 +317,11 @@ class ZRDrillWnd(commonwnd.CommonWnd):
         self.fntText = fntText
         self.fntMor  = fntMor
         self.signs   = signs
+        try:
+            # 메인 폰트 크기와 동일 크기의 Bold 로드
+            self.fntTextBold = ImageFont.truetype(common.common.abc_bold, self.fntText.size)
+        except:
+            self.fntTextBold = self.fntText
 
         # 데이터 조합
         L3, L4 = zr.build_drill(l2row)
@@ -395,17 +408,25 @@ class ZRDrillWnd(commonwnd.CommonWnd):
             isL3  = (lvl == 3)
 
             if isL3:
-                # 굵게(구-PIL 호환: 두 번 찍기)
                 xx = x0
                 for ci, w in enumerate(self.COL_W):
                     val = cells[ci]
-                    fnt = self.fntMor if ci == 1 else self.fntText
-                    tw, th = draw.textsize(val, fnt)
-                    cx = xx + (w - tw)/2; cy = y + (self.LINE_HEIGHT - th)/2
-                    draw.text((cx,   cy), val, fill=txt, font=fnt)
-                    draw.text((cx-1, cy), val, fill=txt, font=fnt)
+                    if ci == 1:
+                        # 사인 칸: morinus 기호 → 가짜 볼드(두 번 찍기)
+                        fnt = self.fntMor
+                        tw, th = draw.textsize(val, fnt)
+                        cx = xx + (w - tw)/2; cy = y + (self.LINE_HEIGHT - th)/2
+                        draw.text((cx,   cy), val, fill=txt, font=fnt)
+                        draw.text((cx-1, cy), val, fill=txt, font=fnt)
+                    else:
+                        # 나머지 칸: 진짜 Bold
+                        fntB = self.fntTextBold
+                        tw, th = draw.textsize(val, fntB)
+                        cx = xx + (w - tw)/2; cy = y + (self.LINE_HEIGHT - th)/2
+                        draw.text((cx, cy), val, fill=txt, font=fntB)
                     xx += w
             else:
+
                 xx = x0
                 for ci, w in enumerate(self.COL_W):
                     val = cells[ci]

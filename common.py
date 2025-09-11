@@ -11,7 +11,8 @@ class Common:
         self.ephepath = os.path.join('SWEP', 'Ephem')
 
         self.symbols = os.path.join('Res', 'Morinus.ttf')
-        self.abc = os.path.join('Res', 'DejaVuSansCondensed.ttf')
+        self.abc = os.path.join('Res', 'Roboto-Regular.ttf')
+        self.abc_bold = os.path.join('Res', 'Roboto-Bold.ttf')
         # 프라이빗 폰트 등록: 이 프로세스에서만 파일의 폰트를 쓸 수 있게 함
         try:
             import ctypes

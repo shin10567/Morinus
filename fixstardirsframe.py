@@ -33,7 +33,7 @@ class FixStarDirsWnd(cw.CommonWnd):
         self.W_PROM = self.BIG_CELL_WIDTH
         self.W_DC   = self.SMALL_CELL_WIDTH
         self.W_SIG  = self.CELL_WIDTH
-        self.W_ARC  = int(5 * self.FONT_SIZE)  
+        self.W_ARC  = self.CELL_WIDTH  
         self.W_DATE = self.MED_CELL_WIDTH
         self.COL_WIDTHS = (self.W_AGE, self.W_PROM, self.W_DC, self.W_SIG, self.W_ARC, self.W_DATE)
         self.COLUMN_NUM = 6
