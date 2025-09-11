@@ -5,11 +5,11 @@ from fontTools.ttLib import TTFont
 from fontTools.pens.boundsPen import BoundsPen
 import os, math
 
-FONTS = ["Res/FreeSans.ttf", "Res/Morinus.ttf"]
+FONTS = ["Res/DejaVuSansCondensed.ttf", "Res/Morinus.ttf"]
 
 # 안전 여유: upm의 8% (너무 타이트하면 0.10~0.12로 올리세요)
-LINEGAP_RATIO = 0.8
-FUDGE_RATIO   = 0.8  # head/OS2/hhea에 추가로 얹을 여유
+LINEGAP_RATIO = 0.12
+FUDGE_RATIO   = 0.12  # head/OS2/hhea에 추가로 얹을 여유
 
 def compute_true_bbox(tt):
     """모든 글리프를 실제로 그려서 (xMin,yMin,xMax,yMax) 반환"""
