@@ -82,7 +82,7 @@ menutxtseng = {'MHoroscope':'&Horoscope',
 'OMFixStarsOpt':'&Fixed Stars\tShift+F', 'OMFixStarsOptDoc':'Shows fixedstar selection dialog', 
 'OMProfectionsOpt':'Prof&ections\tShift+E', 'OMProfectionsOptDoc':'Shows profections selection dialog',
 # ################ V 7.3.0
-'OMFirdariaOpt':'Firdaria (&J)\tShift+J', 'OMFirdariaOptDoc':'Shows firdaria selection dialog',
+'OMFirdariaOpt':'Firdaria\tShift+J', 'OMFirdariaOptDoc':'Shows firdaria selection dialog',
 # ################
 # ################ V 7.2.0
 'OMDefLocationOpt':'Defaul&t Location\tShift+T', 'OMDefLocationOptDoc':'Shows default location selection dialog',
@@ -644,7 +644,7 @@ menutxtsrus = {'MHoroscope':u'&Гороскоп', 'HMNew':u'&Новый\tCtrl+N'
 'OMFixStarsOpt':u'&Неподв. Звезды\tShift+F', 'OMFixStarsOptDoc':u'Выбрать звезды', 
 'OMProfectionsOpt':u'Profections\tShift+V', 'OMProfectionsOptDoc':u'Shows profections selection dialog',
 # ################ V 7.3.0
-'OMFirdariaOpt':u'Firdaria (&J)\tShift+J', 'OMFirdariaOptDoc':u'Shows firdaria selection dialog',
+'OMFirdariaOpt':u'Firdaria\tShift+J', 'OMFirdariaOptDoc':u'Shows firdaria selection dialog',
 # ################
 # ################ V 7.2.0
 'OMDefLocationOpt':u'Default location\tShift+B', 'OMDefLocationOptDoc':u'Shows default location selection dialog',
@@ -1196,7 +1196,7 @@ menutxtsita = {'MHoroscope':u'&Oroscopo',
 'OMFixStarsOpt':u'S&telle fisse\tShift+T', 'OMFixStarsOptDoc':u'Mostra preferenze selezione stelle fisse',
 'OMProfectionsOpt':u'Profezio&ni\tShift+N', 'OMProfectionsOptDoc':u'Mostra preferenze per le profezioni',
 # ################ V 7.3.0
-'OMFirdariaOpt':u'Firdaria (&J)\tShift+J', 'OMFirdariaOptDoc':u'Mostra preferenze per Firdaria',
+'OMFirdariaOpt':u'Firdaria\tShift+J', 'OMFirdariaOptDoc':u'Mostra preferenze per Firdaria',
 # ################
 # ################ V 7.2.0
 'OMDefLocationOpt':u'Local&ità di riferimento\tShift+I', 'OMDefLocationOptDoc':u'Mostra preferenze per selezionare il luogo',
